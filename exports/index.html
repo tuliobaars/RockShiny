@@ -1,0 +1,2285 @@
+<!doctype html>
+<!-- RockShiny karaoke: standalone page written by karaoke_export_html(). Runs
+     offline in any modern browser; no server, no R. Same player as the app. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="RockShiny karaoke_export_html()">
+  <title>RockShiny karaoke</title>
+  <style>
+/* ===========================================================================
+   RockShiny karaoke -- lyrics stage, transport and overlays (karaoke.js).
+   Same tokens as the note highway (highway.css): Lumen, "Stage dark".
+   =========================================================================== */
+.rs-k {
+  --rs-accent: #f5a524; --rs-text: #eef0f6; --rs-muted: #9aa3b8;
+  --rs-glass: rgba(14, 17, 26, 0.72); --rs-line: rgba(255, 255, 255, 0.09);
+  --rs-font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --rs-k-scale: 1;
+  --rs-k-sung: #ffb938;                       /* sung part of the current line */
+  --rs-k-unsung: rgba(246, 247, 251, 0.94);   /* not yet sung (current line)   */
+  --rs-k-fs: calc(clamp(22px, 5vmin, 66px) * var(--rs-k-scale));
+  position: relative; overflow: hidden; background: #0b0e17; border-radius: 14px; outline: none;
+  user-select: none; min-height: 320px; font-family: var(--rs-font); color: var(--rs-text);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), inset 0 0 0 1px var(--rs-line);
+  container-type: size;
+}
+@supports (height: 1cqh) {
+  .rs-k { --rs-k-fs: calc(clamp(22px, min(7.4cqh, 4.8cqw), 70px) * var(--rs-k-scale)); }
+}
+.rs-k:focus-visible { box-shadow: 0 0 0 2px rgba(245, 165, 36, 0.55), 0 10px 40px rgba(0, 0, 0, 0.45); }
+.rs-k.is-sheet { --rs-k-fs: calc(clamp(15px, 2.6vmin, 30px) * var(--rs-k-scale)); }
+@supports (height: 1cqh) {
+  .rs-k.is-sheet { --rs-k-fs: calc(clamp(15px, min(3.5cqh, 2.5cqw), 32px) * var(--rs-k-scale)); }
+}
+
+/* backdrop: the album art, blurred, under a vignette */
+.rs-k-backdrop { position: absolute; inset: -60px; background: center / cover no-repeat; transform: scale(1.08);
+  filter: blur(46px) saturate(150%) brightness(0.42); opacity: 0.75; transition: opacity 0.6s; pointer-events: none; }
+.rs-k::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(ellipse at 50% 38%, rgba(24, 32, 58, 0.55) 0%, rgba(11, 14, 23, 0.35) 45%, rgba(8, 10, 16, 0.92) 100%); }
+.rs-k.no-backdrop .rs-k-backdrop, .rs-k:not(.has-song) .rs-k-backdrop { opacity: 0; }
+
+/* lyrics: one scrolling column, the focus line held at a fixed height */
+.rs-k-viewport { position: absolute; left: 0; right: 0; top: 94px; bottom: 66px; overflow: hidden; z-index: 1;
+  -webkit-mask-image: linear-gradient(transparent 0, #000 16%, #000 84%, transparent 100%);
+  mask-image: linear-gradient(transparent 0, #000 16%, #000 84%, transparent 100%); }
+.rs-k.is-sheet .rs-k-viewport { -webkit-mask-image: linear-gradient(transparent 0, #000 7%, #000 93%, transparent 100%);
+  mask-image: linear-gradient(transparent 0, #000 7%, #000 93%, transparent 100%); }
+.rs-k-track { position: absolute; left: 0; right: 0; top: 0; margin: 0 auto; width: min(92%, 1240px); text-align: center;
+  transform: translate3d(0, 0, 0); transition: transform 0.45s cubic-bezier(0.2, 0.7, 0.2, 1); will-change: transform; }
+.rs-k-track.no-anim { transition: none; }
+.rs-k:not(.has-song) .rs-k-track { display: none; }
+
+.rs-k-line { font-size: var(--rs-k-fs); font-weight: 800; line-height: 1.18; letter-spacing: -0.015em; padding: 0.2em 0;
+  color: rgba(235, 238, 246, 0.34); transform: scale(0.86); transform-origin: 50% 50%; cursor: pointer;
+  transition: color 0.3s, transform 0.4s cubic-bezier(0.2, 0.7, 0.2, 1); text-wrap: balance; overflow-wrap: anywhere; }
+.rs-k-line:hover { color: rgba(235, 238, 246, 0.6); }
+.rs-k-line.is-past { color: rgba(235, 238, 246, 0.24); }
+.rs-k-line.is-next { color: rgba(235, 238, 246, 0.78); transform: scale(0.93); }
+.rs-k-line.is-current { color: var(--rs-k-unsung); transform: none; cursor: default; }
+.rs-k-line.is-current .rs-k-syl.is-sung { color: var(--rs-k-sung); }
+/* the syllable being sung: a colour wipe, driven by --p (0..1) from karaoke.js */
+.rs-k-line.is-current .rs-k-syl.is-now {
+  color: transparent; text-shadow: none;
+  background-image: linear-gradient(90deg, var(--rs-k-sung) calc(var(--p, 0) * 100%), var(--rs-k-unsung) 0);
+  -webkit-background-clip: text; background-clip: text; }
+
+.rs-k.is-sheet .rs-k-line { font-weight: 700; transform: none; padding: 0.12em 0; color: rgba(235, 238, 246, 0.5); }
+.rs-k.is-sheet .rs-k-line.is-past { color: rgba(235, 238, 246, 0.36); }
+.rs-k.is-sheet .rs-k-line.is-next { color: rgba(235, 238, 246, 0.85); }
+.rs-k.is-sheet .rs-k-line.is-current { color: var(--rs-k-unsung); }
+.rs-k.is-sheet .rs-k-line.is-current, .rs-k.is-sheet .rs-k-line.is-next {
+  background: linear-gradient(90deg, transparent, rgba(245, 165, 36, 0.07) 20%, rgba(245, 165, 36, 0.07) 80%, transparent); }
+
+/* section names before the first line of each section */
+.rs-k-sec { font-size: max(10px, calc(var(--rs-k-fs) * 0.3)); font-weight: 750; letter-spacing: 0.16em;
+  text-transform: uppercase; color: rgba(245, 165, 36, 0.72); margin-top: 0.9em; padding-top: 0.4em; }
+.rs-k-sec:first-child { margin-top: 0; }
+.rs-k.no-sections .rs-k-sec { display: none; }
+
+/* intro / instrumental cue above the waiting line: countdown, then count-in dots */
+.rs-k-cue { position: absolute; left: 50%; transform: translate(-50%, -100%); z-index: 2; display: none; align-items: center; gap: 14px;
+  pointer-events: none; font-size: 13px; font-weight: 750; letter-spacing: 0.12em; text-transform: uppercase; color: var(--rs-muted); }
+.rs-k-cue.is-on { display: flex; }
+.rs-k-cue-text:empty { display: none; }
+.rs-k-cue-dots { display: none; gap: 12px; }
+.rs-k-cue.is-counting .rs-k-cue-dots { display: flex; }
+.rs-k-cue-dots i { width: 15px; height: 15px; border-radius: 50%; background: rgba(255, 255, 255, 0.12); transition: background 0.15s, box-shadow 0.15s; }
+.rs-k-cue-dots i.is-on { background: var(--rs-accent); box-shadow: 0 0 14px rgba(245, 165, 36, 0.7); }
+
+/* glass panels */
+.rs-k-card, .rs-k-pill, .rs-k-transport, .rs-k-banner {
+  background: var(--rs-glass); backdrop-filter: blur(10px) saturate(140%); -webkit-backdrop-filter: blur(10px) saturate(140%);
+  box-shadow: inset 0 0 0 1px var(--rs-line), 0 6px 24px rgba(0, 0, 0, 0.35); z-index: 3; }
+
+/* song card (top-left) */
+.rs-k-card { position: absolute; left: 14px; top: 14px; display: flex; gap: 12px; align-items: center;
+  padding: 8px 14px 8px 8px; border-radius: 12px; max-width: min(44%, 440px); pointer-events: none; }
+.rs-k:not(.has-song) .rs-k-card, .rs-k:not(.has-song) .rs-k-pill, .rs-k:not(.has-song) .rs-k-transport { display: none; }
+.rs-k-art { flex: none; width: 52px; height: 52px; border-radius: 8px; background: #1b2133 center / cover no-repeat;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.08); }
+.rs-k-art.is-empty { background-image: linear-gradient(135deg, #2a3350, #161b2b); }
+.rs-k-card-meta { min-width: 0; }
+.rs-k-card-title { font-size: 16px; font-weight: 750; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rs-k-card-sub { font-size: 12px; color: var(--rs-muted); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* section pill (top-right) */
+.rs-k-pill { position: absolute; right: 14px; top: 14px; padding: 7px 14px; border-radius: 999px; font-size: 12.5px;
+  font-weight: 750; letter-spacing: 0.06em; text-transform: uppercase; pointer-events: none; display: none; }
+.rs-k-pill.is-on { display: block; }
+
+/* empty state */
+.rs-k-empty { position: absolute; inset: 0; display: flex; gap: 18px; align-items: center; justify-content: center; z-index: 2;
+  color: var(--rs-muted); font-size: 15px; line-height: 1.5; pointer-events: none; padding: 0 24px;
+  background: radial-gradient(ellipse at 50% 30%, #18203a 0%, #0b0e17 65%); }
+.rs-k.has-song .rs-k-empty { display: none; }
+.rs-k-empty b { color: var(--rs-text); font-size: 18px; }
+.rs-k-empty code { color: var(--rs-accent); background: rgba(245, 165, 36, 0.1); padding: 1px 5px; border-radius: 4px; }
+.rs-k-empty-icon { flex: none; width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center;
+  background: linear-gradient(135deg, rgba(245, 165, 36, 0.22), rgba(245, 165, 36, 0.05)); box-shadow: inset 0 0 0 1px rgba(245, 165, 36, 0.35); }
+.rs-k-empty-icon svg { width: 30px; height: 30px; fill: var(--rs-accent); }
+
+/* status toast */
+.rs-k-banner { position: absolute; left: 50%; bottom: 72px; transform: translateX(-50%); max-width: 80%; padding: 8px 16px;
+  border-radius: 10px; font-size: 13px; display: none; pointer-events: none; }
+.rs-k-banner.is-info { display: block; color: #d6e4ff; }
+.rs-k-banner.is-error { display: block; color: #ffd0d6; background: rgba(74, 22, 32, 0.85); }
+
+/* transport */
+.rs-k-transport { position: absolute; left: 14px; right: 14px; bottom: 12px; height: 46px; display: flex; align-items: center;
+  gap: 8px; padding: 0 12px 0 8px; border-radius: 14px; font-size: 12.5px; }
+.rs-k-btn { flex: none; width: 32px; height: 32px; border: 0; border-radius: 50%; display: grid; place-items: center; padding: 0;
+  background: rgba(255, 255, 255, 0.07); cursor: pointer; transition: background 0.15s, transform 0.1s; }
+.rs-k-btn:hover { background: rgba(255, 255, 255, 0.14); }
+.rs-k-btn:active { transform: scale(0.94); }
+.rs-k-btn svg { width: 17px; height: 17px; fill: var(--rs-text); }
+.rs-k-btn-play { width: 36px; height: 36px; background: var(--rs-accent); box-shadow: 0 0 18px rgba(245, 165, 36, 0.35); }
+.rs-k-btn-play:hover { background: #ffb739; }
+.rs-k-btn-play svg { fill: #1a1206; width: 20px; height: 20px; }
+.rs-k-time { flex: none; min-width: 88px; margin-left: 4px; font-variant-numeric: tabular-nums; color: var(--rs-text); font-weight: 600; }
+.rs-k-transport.is-silent .rs-k-time::after { content: "no audio"; margin-left: 8px; font-size: 10.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.04em; color: #f0b860; background: rgba(240, 184, 96, 0.12); padding: 2px 6px; border-radius: 4px; }
+.rs-k-strip { position: relative; flex: 1; height: 12px; border-radius: 6px; cursor: pointer; touch-action: none; min-width: 60px; }
+.rs-k-segs { position: absolute; inset: 0; border-radius: 6px; overflow: hidden; background: rgba(255, 255, 255, 0.05); }
+.rs-k-seg { position: absolute; top: 0; bottom: 0; background: rgba(255, 255, 255, 0.04); box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.5); }
+.rs-k-seg.is-odd { background: rgba(255, 255, 255, 0.08); }
+.rs-k-sung { position: absolute; top: 3px; bottom: 3px; border-radius: 2px; background: rgba(245, 165, 36, 0.85); }
+.rs-k-future { position: absolute; top: 0; bottom: 0; right: 0; background: rgba(8, 10, 16, 0.5); border-radius: 0 6px 6px 0; pointer-events: none; }
+.rs-k-head { position: absolute; top: -5px; bottom: -5px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: #fff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8); pointer-events: none; }
+.rs-k-hovertip { position: absolute; bottom: 20px; transform: translateX(-50%); padding: 4px 8px; border-radius: 6px; white-space: nowrap;
+  font-size: 11.5px; font-weight: 600; background: rgba(10, 12, 18, 0.92); box-shadow: inset 0 0 0 1px var(--rs-line); opacity: 0;
+  transition: opacity 0.12s; pointer-events: none; }
+.rs-k-strip:hover .rs-k-hovertip { opacity: 1; }
+.rs-k-badge { flex: none; display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 750; font-variant-numeric: tabular-nums; color: #8fd3ff; background: rgba(143, 211, 255, 0.12); }
+
+.rs-k-badge-est { color: #ffd27a; background: rgba(255, 210, 122, 0.12); cursor: help; }
+
+/* narrow */
+.rs-k.is-compact .rs-k-card { max-width: calc(100% - 150px); }
+.rs-k.is-compact .rs-k-card-sub { display: none; }
+.rs-k.is-compact .rs-k-art { width: 40px; height: 40px; }
+.rs-k.is-compact .rs-k-viewport { top: 74px; }
+.rs-k.is-compact .rs-k-time { min-width: 0; }
+.rs-k.is-compact .rs-k-transport .rs-k-btn:nth-child(3), .rs-k.is-compact .rs-k-transport .rs-k-btn:nth-child(4) { display: none; }
+
+/* lyrics without timing (plain text from LRCLIB): a sheet to scroll by hand */
+.rs-k.is-unsynced .rs-k-viewport { overflow-y: auto; -webkit-mask-image: none; mask-image: none; }
+.rs-k.is-unsynced .rs-k-track { position: relative; transform: none !important; padding: 12px 0 40px; }
+.rs-k.is-unsynced .rs-k-line { transform: none; cursor: default; font-size: calc(var(--rs-k-fs) * 0.55); }
+
+/* icons never take the pointer: a click always lands on the button (its SVG may be swapped mid-click) */
+.rs-k-btn svg, .rs-k-btn * { pointer-events: none; }
+
+/* ---- the original voice (karaoke-voice.js) and singing (karaoke-sing.js) ---- */
+.rs-k-btn.is-on { background: rgba(245, 165, 36, 0.22); box-shadow: inset 0 0 0 1px rgba(245, 165, 36, 0.5); }
+.rs-k-btn.is-on svg { fill: #ffc46b; }
+.rs-k-btn-mic { position: relative; overflow: hidden; }
+.rs-k-miclevel { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--lvl, 0) * 100%); background: rgba(70, 200, 120, 0.35);
+  pointer-events: none; transition: height 0.08s linear; }
+.rs-k-pop { position: absolute; z-index: 30; left: 14px; bottom: 66px; width: 280px; padding: 12px 14px; border-radius: 12px; display: none;
+  background: rgba(20, 24, 36, 0.96); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 14px 40px rgba(0, 0, 0, 0.5); font-size: 12.5px; }
+.rs-k-pop.is-open { display: block; }
+.rs-k-pop-title { font-weight: 750; margin-bottom: 8px; }
+.rs-k-pop-row { display: flex; align-items: center; gap: 10px; }
+.rs-k-pop-val { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; color: #ffc46b; }
+.rs-k-pop-hint { margin-top: 8px; font-size: 11.5px; line-height: 1.4; color: var(--rs-muted); }
+.rs-k-range { flex: 1; accent-color: #f5a524; }
+/* pitch lane: the reference (amber) and the singer (green / yellow / red by how well it fits) */
+/* (a canvas is a replaced element: left + right do not stretch it, an explicit width does) */
+.rs-k-lane { position: absolute; left: 14px; bottom: 64px; width: calc(100% - 28px); height: 78px; display: none; z-index: 2; border-radius: 12px;
+  background: rgba(10, 12, 18, 0.72); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07); }
+.rs-k.is-singing .rs-k-lane { display: block; }
+.rs-k.is-singing .rs-k-viewport { bottom: 148px; }
+.rs-k.is-singing .rs-k-banner { bottom: 150px; }
+.rs-k-score { position: absolute; right: 14px; top: 58px; z-index: 3; display: none; flex-direction: column; align-items: flex-end; gap: 2px;
+  pointer-events: none; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6); }
+.rs-k.is-singing .rs-k-score { display: flex; }
+.rs-k-score-pts { font-size: 30px; font-weight: 850; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.rs-k-score-rate { font-size: 12.5px; font-weight: 750; text-transform: uppercase; letter-spacing: 0.08em; color: var(--rs-muted); }
+.rs-k-score-rate.is-perfect { color: #46c878; } .rs-k-score-rate.is-great { color: #8fe39f; } .rs-k-score-rate.is-good { color: #ffd27a; }
+.rs-k-score-rate.is-ok { color: #ffb36b; } .rs-k-score-rate.is-missed { color: #ff7a6b; }
+/* results */
+.rs-k-results { position: absolute; inset: 0; z-index: 40; display: none; place-items: center; background: rgba(8, 10, 15, 0.6); backdrop-filter: blur(4px); }
+.rs-k-results.is-open { display: grid; }
+.rs-k-res-box { width: min(520px, 90%); padding: 22px 26px; border-radius: 18px; text-align: center; background: rgba(20, 24, 36, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 20px 60px rgba(0, 0, 0, 0.55); }
+.rs-k-res-kind { font-size: 12px; color: var(--rs-muted); }
+.rs-k-res-score { font-size: 54px; font-weight: 900; letter-spacing: -0.03em; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.rs-k-res-rating { font-size: 15px; font-weight: 800; color: #ffc46b; text-transform: uppercase; letter-spacing: 0.1em; }
+.rs-k-res-stats { display: flex; justify-content: center; flex-wrap: wrap; gap: 6px 16px; margin: 14px 0 12px; font-size: 12.5px; color: var(--rs-muted); }
+.rs-k-res-stats b { color: var(--rs-text); font-size: 15px; margin-right: 3px; }
+.rs-k-res-lines { display: flex; align-items: flex-end; gap: 2px; height: 46px; padding: 0 4px; }
+.rs-k-res-lines i { flex: 1; height: calc(8% + var(--v) * 92%); border-radius: 2px 2px 0 0;
+  background: hsl(calc(var(--v) * 120) 70% 55%); }
+.rs-k-res-lines i.is-skip { background: rgba(255, 255, 255, 0.12); height: 8%; }
+.rs-k-res-best { margin-top: 10px; min-height: 18px; font-weight: 750; color: #46c878; }
+.rs-k-res-close { margin-top: 12px; border: 0; border-radius: 999px; padding: 7px 22px; font-weight: 750; cursor: pointer; background: #f5a524; color: #1a1206; }
+.rs-k-btn.is-pending { animation: rs-k-pulse 1.2s ease-in-out infinite; }
+.rs-k-btn.is-unavailable { opacity: 0.45; }
+@keyframes rs-k-pulse { 50% { box-shadow: 0 0 0 4px rgba(245, 165, 36, 0.35); } }
+/* standalone karaoke page (karaoke_export_html()): the app chrome around the player */
+html, body { height: 100%; margin: 0; }
+body.rs-kpage { display: flex; flex-direction: column; color: #e8eaf1; font: 14px/1.4 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: radial-gradient(ellipse at 70% -10%, #1a2035 0%, #0b0d13 55%) fixed #0b0d13; }
+.rs-kp-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.06); background: rgba(11,13,19,.6); }
+.rs-kp-brand { display: flex; align-items: center; gap: 10px; margin-right: 4px; }
+.rs-kp-logo { width: 28px; height: 28px; filter: drop-shadow(0 2px 6px rgba(245,165,36,.35)); }
+.rs-kp-name { font-weight: 800; letter-spacing: -0.02em; font-size: 1.15rem; }
+.rs-kp-sub { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: rgba(232,234,241,.45); margin-top: 3px; }
+.rs-kp-spacer { flex: 1; }
+.rs-kp-field { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: rgba(232,234,241,.6); }
+.rs-kp-field select, .rs-kp-seg, .rs-kp-btn { height: 32px; border-radius: 9px; border: 1px solid rgba(255,255,255,.1);
+  background: #141824; color: #e8eaf1; font: 600 12.5px/1 inherit; font-family: inherit; }
+.rs-kp-field select { padding: 0 8px; }
+.rs-kp-song select { width: min(24vw, 300px); }
+.rs-kp-seg { display: inline-flex; align-items: stretch; overflow: hidden; }
+.rs-kp-seg button { border: 0; background: transparent; color: inherit; font: inherit; padding: 0 11px; cursor: pointer; }
+.rs-kp-seg button + button, .rs-kp-seg span + button { border-left: 1px solid rgba(255,255,255,.08); }
+.rs-kp-seg button:hover, .rs-kp-btn:hover { background: rgba(255,255,255,.07); }
+.rs-kp-seg button.is-on { background: #f5a524; color: #1a1206; }
+.rs-kp-offset span { display: inline-flex; align-items: center; padding: 0 10px; min-width: 62px; justify-content: center;
+  font-variant-numeric: tabular-nums; border-left: 1px solid rgba(255,255,255,.08); cursor: default; }
+.rs-kp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; cursor: pointer; }
+.rs-kp-icon { width: 34px; padding: 0; justify-content: center; }
+.rs-kp-icon svg { width: 17px; height: 17px; fill: currentColor; }
+.rs-kp-main { flex: 1; min-height: 0; padding: 12px 14px 6px; }
+.rs-kp-main .rs-karaoke { width: 100%; height: 100%; }
+.rs-karaoke:fullscreen { border-radius: 0; }
+.rs-kp-keys { flex: none; display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 4px 18px 10px; font-size: 11.5px; color: rgba(232,234,241,.45); }
+.rs-kp-keys span { display: inline-flex; gap: 4px; align-items: center; }
+.rs-kp-hint { margin-left: auto; }
+kbd { font-size: .7rem; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.08); color: #e8eaf1;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,.12); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+body.is-single .rs-kp-song { display: none; }
+.rs-kp-find { display: none; height: 32px; width: min(13vw, 170px); padding: 0 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.1);
+  background: #141824; color: #e8eaf1; font: 600 12.5px/1 inherit; font-family: inherit; }
+.rs-kp-find:focus { outline: none; border-color: rgba(245,165,36,.6); }
+body.has-find .rs-kp-find { display: inline-block; }
+body.has-find .rs-kp-song > span { display: none; }
+body.has-find .rs-kp-song select { width: min(20vw, 260px); }
+@media (max-width: 1600px) { body.has-find .rs-kp-sub, body.has-find .rs-kp-field > span { display: none; } }
+@media (max-width: 720px) { .rs-kp-keys { display: none; } .rs-kp-sub { display: none; } }
+@media (max-width: 1400px) {
+  .rs-kp-sub, .rs-kp-field > span { display: none; }
+  .rs-kp-song select { width: min(26vw, 280px); }
+}
+.rs-kp-icon svg { pointer-events: none; }
+</style>
+</head>
+<body class="rs-kpage">
+  <header class="rs-kp-bar">
+    <div class="rs-kp-brand">
+      <svg viewBox="0 0 32 32" class="rs-kp-logo" aria-hidden="true"><defs><linearGradient id="rsg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffc46b"/><stop offset="1" stop-color="#f08a00"/></linearGradient></defs>
+        <path fill="url(#rsg)" d="M16 2C9 2 4 5 4 10c0 8 7 17 12 20 5-3 12-12 12-20 0-5-5-8-12-8z"/>
+        <path fill="#1a1206" d="M13 9h6v2h-2v9.3a3 3 0 1 1-2-2.8V11h-2z"/></svg>
+      <span class="rs-kp-name">RockShiny</span><span class="rs-kp-sub">karaoke</span>
+    </div>
+    <label class="rs-kp-field rs-kp-song"><span>Song</span><select id="rs-kp-song"></select></label>
+    <input type="search" id="rs-kp-find" class="rs-kp-find" placeholder="Search songs&hellip;" aria-label="Search songs" autocomplete="off">
+    <button type="button" class="rs-kp-btn rs-kp-icon" id="rs-kp-shuffle" title="Shuffle: another song, picked at random">
+      <svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-2.6l-3 3.9-1.3-1.6L13.4 6H17zM3 6h4.6l8.8 11H17v-3l4 4-4 4v-3h-1.6L6.6 8H3zm0 10h3.6l2-2.6 1.3 1.6L7.6 18H3z"/></svg>
+    </button>
+    <div class="rs-kp-spacer"></div>
+    <div class="rs-kp-seg" role="group" aria-label="View">
+      <button type="button" data-view="stage" title="Big lines, one at a time">Stage</button>
+      <button type="button" data-view="sheet" title="The whole lyric sheet, scrolling">Sheet</button>
+    </div>
+    <div class="rs-kp-seg" role="group" aria-label="Text size">
+      <button type="button" id="rs-kp-smaller" title="Smaller text">A&minus;</button>
+      <button type="button" id="rs-kp-bigger" title="Bigger text">A+</button>
+    </div>
+    <div class="rs-kp-seg rs-kp-offset" role="group" aria-label="Lyrics timing"
+         title="Lyrics timing: + highlights later, &minus; earlier (Shift = 100 ms steps; double-click the value to reset)">
+      <button type="button" id="rs-kp-earlier">&minus;</button>
+      <span id="rs-kp-offset">0 ms</span>
+      <button type="button" id="rs-kp-later">+</button>
+    </div>
+    <label class="rs-kp-field"><span>Speed</span>
+      <select id="rs-kp-speed"><option value="1">100%</option><option value="0.9">90%</option><option value="0.8">80%</option><option value="0.75">75%</option></select>
+    </label>
+    <label class="rs-kp-btn" title="Load audio: play along with your own copy of the song (any audio file the browser plays)">
+      Audio&hellip;<input type="file" id="rs-kp-audio" accept="audio/*,video/*,.ogg,.opus,.m4a,.mp3,.flac,.wav" hidden>
+    </label>
+    <label class="rs-kp-btn" title="Load lyrics: a .lrc file (synced lyrics) for this song; it is synced to the audio automatically">
+      Lyrics&hellip;<input type="file" id="rs-kp-lrc" accept=".lrc,.txt,text/plain" hidden>
+    </label>
+    <button type="button" class="rs-kp-btn rs-kp-icon" id="rs-kp-full" title="Full screen (F)">
+      <svg viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z"/></svg>
+    </button>
+  </header>
+  <main class="rs-kp-main"><div id="rs-karaoke" class="rs-karaoke" tabindex="0"></div></main>
+  <footer class="rs-kp-keys"><span><kbd>Space</kbd> play / pause</span><span><kbd>&larr;</kbd><kbd>&rarr;</kbd> &plusmn;5 s</span>
+    <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> previous / next line</span><span><kbd>Home</kbd> restart</span><span><kbd>F</kbd> full screen</span>
+    <span class="rs-kp-hint">Click a line to sing from there.</span></footer>
+  <script type="application/json" id="rs-karaoke-data">{"format":"rockshiny-karaoke-page/1","title":"RockShiny karaoke","options":{},"songs":[{"id":"a-ha-mouth-take-on-all-star-5a75ed","meta":{"title":"Take On All Star","artist":"A-ha Mouth","album":"YouTube/All Star Memes","year":"2017","duration":77.105},"lyrics":"archive","src":"index_files/songs/a-ha-mouth-take-on-all-star-5a75ed.js"},{"id":"arctic-monkeys-arabella-bfcf52","meta":{"title":"Arabella","artist":"Arctic Monkeys","album":"AM","year":"2013","duration":210.373},"lyrics":"archive","src":"index_files/songs/arctic-monkeys-arabella-bfcf52.js"},{"id":"arctic-monkeys-do-i-wanna-know-96f02e","meta":{"title":"Do I Wanna Know","artist":"Arctic Monkeys","album":"AM","year":"2013","duration":276.475},"lyrics":"archive","src":"index_files/songs/arctic-monkeys-do-i-wanna-know-96f02e.js"},{"id":"arctic-monkeys-i-wanna-be-yours-f2e094","meta":{"title":"I Wanna Be Yours","artist":"Arctic Monkeys","album":"AM","year":"2013","duration":187.023},"lyrics":"archive","src":"index_files/songs/arctic-monkeys-i-wanna-be-yours-f2e094.js"},{"id":"b-b-king-eric-clapton-key-to-the-highway-e723be","meta":{"title":"Key to the Highway","artist":"B.B. King & Eric Clapton","album":"Riding with the King","year":"2000","duration":229.959},"lyrics":"archive","src":"index_files/songs/b-b-king-eric-clapton-key-to-the-highway-e723be.js"},{"id":"b-b-king-come-rain-or-come-shine-bb-lead-22a1ac","meta":{"title":"Come Rain Or Come Shine (BB Lead)","artist":"B.B. King","album":"Riding With The King","year":"2000","duration":254.372},"lyrics":"archive","src":"index_files/songs/b-b-king-come-rain-or-come-shine-bb-lead-22a1ac.js"},{"id":"b-b-king-lucille-052511","meta":{"title":"Lucille","artist":"B.B. King","album":"Lucille","year":"1968","duration":620.856},"lyrics":"archive","src":"index_files/songs/b-b-king-lucille-052511.js"},{"id":"bee-gees-stayin-alive-6c884f","meta":{"title":"Stayin' Alive","artist":"Bee Gees","album":"Saturday Night Fever","year":"1977","duration":288.165},"lyrics":"archive","src":"index_files/songs/bee-gees-stayin-alive-6c884f.js"},{"id":"billy-talent-devil-in-a-midnight-mass-f5ff00","meta":{"title":"Devil in a Midnight Mass","artist":"Billy Talent","album":"II","year":"2006","duration":183.932},"lyrics":"archive","src":"index_files/songs/billy-talent-devil-in-a-midnight-mass-f5ff00.js"},{"id":"cream-crossroads-09a304","meta":{"title":"Crossroads","artist":"Cream","album":"Wheels of Fire","year":"1968","duration":263.507},"lyrics":"archive","src":"index_files/songs/cream-crossroads-09a304.js"},{"id":"cream-white-room-a448a5","meta":{"title":"White Room","artist":"Cream","album":"Wheels Of Fire (CD 1)","year":"1968","duration":301.308},"lyrics":"archive","src":"index_files/songs/cream-white-room-a448a5.js"},{"id":"daft-punk-get-lucky-1a5b89","meta":{"title":"Get Lucky","artist":"Daft Punk","album":"Random Access Memories","year":"2013","duration":258.711},"lyrics":"archive","src":"index_files/songs/daft-punk-get-lucky-1a5b89.js"},{"id":"daiki-kasho-5oul-on-d-splay-136821","meta":{"title":"5OUL ON D!SPLAY","artist":"Daiki Kasho","album":"Gran Turismo 5","year":"2010","duration":227.078},"lyrics":"archive","src":"index_files/songs/daiki-kasho-5oul-on-d-splay-136821.js"},{"id":"daiki-kasho-all-my-life-9d776d","meta":{"title":"All My Life","artist":"Daiki Kasho","album":"Gran Turismo 6","year":"2013","duration":264.394},"lyrics":"archive","src":"index_files/songs/daiki-kasho-all-my-life-9d776d.js"},{"id":"daiki-kasho-day-to-live-4720e8","meta":{"title":"Day To Live","artist":"Daiki Kasho","album":"Gran Turismo 5","year":"2010","duration":265.45},"lyrics":"archive","src":"index_files/songs/daiki-kasho-day-to-live-4720e8.js"},{"id":"dire-straits-sultans-of-swing-a98e4b","meta":{"title":"Sultans of Swing","artist":"Dire Straits","album":"Money for Nothing","year":"1988","duration":345.999},"lyrics":"archive","src":"index_files/songs/dire-straits-sultans-of-swing-a98e4b.js"},{"id":"earth-wind-fire-september-b32fd9","meta":{"title":"September","artist":"Earth, Wind & Fire","album":"The Essential Earth, Wind & Fire","year":"1978","duration":225.682},"lyrics":"archive","src":"index_files/songs/earth-wind-fire-september-b32fd9.js"},{"id":"earth-wind-fire-shining-star-d9bfc6","meta":{"title":"Shining Star","artist":"Earth, Wind & Fire","album":"That's the Way of the World","year":"1975","duration":182.181},"lyrics":"archive","src":"index_files/songs/earth-wind-fire-shining-star-d9bfc6.js"},{"id":"earth-wind-fire-sing-a-song-61f39f","meta":{"title":"Sing A Song","artist":"Earth, Wind & Fire","album":"Gratitude","year":"1975","duration":214.142},"lyrics":"archive","src":"index_files/songs/earth-wind-fire-sing-a-song-61f39f.js"},{"id":"eric-clapton-layla-fb3638","meta":{"title":"Layla","artist":"Eric Clapton ","album":"The Cream of Clapton","year":"1987","duration":438.278},"lyrics":"archive","src":"index_files/songs/eric-clapton-layla-fb3638.js"},{"id":"eric-clapton-i-shot-the-sheriff-7f709c","meta":{"title":"I Shot the Sheriff","artist":"Eric Clapton","album":"461 Ocean Boulevard - 1974","year":"1974","duration":271.758},"lyrics":"archive","src":"index_files/songs/eric-clapton-i-shot-the-sheriff-7f709c.js"},{"id":"eric-clapton-kind-hearted-woman-blues-cd2821","meta":{"title":"Kind Hearted Woman Blues","artist":"Eric Clapton","album":"Me and Mr. Johnson","year":"2004","duration":249.932},"lyrics":"archive","src":"index_files/songs/eric-clapton-kind-hearted-woman-blues-cd2821.js"},{"id":"eric-clapton-riding-with-the-king-d9c468","meta":{"title":"Riding With The King","artist":"Eric Clapton","album":"Riding With The King","year":"2001","duration":266.465},"lyrics":"archive","src":"index_files/songs/eric-clapton-riding-with-the-king-d9c468.js"},{"id":"gary-moore-still-got-the-blues-live-8b2b6f","meta":{"title":"Still Got the Blues (Live)","artist":"Gary Moore","album":"Blues Alive","year":"1993","duration":407.999},"lyrics":"archive","src":"index_files/songs/gary-moore-still-got-the-blues-live-8b2b6f.js"},{"id":"gnarls-barkley-crazy-4b7ebf","meta":{"title":"Crazy","artist":"Gnarls Barkley","album":"Single","year":"2006","duration":182.399},"lyrics":"archive","src":"index_files/songs/gnarls-barkley-crazy-4b7ebf.js"},{"id":"green-day-21-guns-e843a9","meta":{"title":"21 Guns","artist":"Green Day","album":"21st Century Breakdown","year":"2009","duration":334.267},"lyrics":"archive","src":"index_files/songs/green-day-21-guns-e843a9.js"},{"id":"green-day-bang-bang-c1a5c5","meta":{"title":"Bang Bang","artist":"Green Day","album":"Revolution Radio","year":"2016","duration":216.789},"lyrics":"archive","src":"index_files/songs/green-day-bang-bang-c1a5c5.js"},{"id":"green-day-good-riddance-time-of-your-life-9eabdb","meta":{"title":"Good Riddance (Time of Your Life)","artist":"Green Day","album":"Nimrod","year":"1997","duration":166.544},"lyrics":"archive","src":"index_files/songs/green-day-good-riddance-time-of-your-life-9eabdb.js"},{"id":"green-day-longview-ff2bb5","meta":{"title":"Longview","artist":"Green Day","album":"Dookie","year":"1994","duration":237.894},"lyrics":"archive","src":"index_files/songs/green-day-longview-ff2bb5.js"},{"id":"green-day-wake-me-up-when-september-ends-0ceac4","meta":{"title":"Wake Me Up When September Ends","artist":"Green Day","album":"American Idiot","year":"2004","duration":297.428},"lyrics":"archive","src":"index_files/songs/green-day-wake-me-up-when-september-ends-0ceac4.js"},{"id":"jimmy-eat-world-nothingwrong-3c184c","meta":{"title":"Nothingwrong","artist":"Jimmy Eat World","album":"Futures","year":"2005","duration":192.766},"lyrics":"archive","src":"index_files/songs/jimmy-eat-world-nothingwrong-3c184c.js"},{"id":"luis-bacalov-his-name-was-king-aa07ec","meta":{"title":"His Name Was King","artist":"Luis Bacalov","album":"Djangp Unchained OST","year":"2012","duration":121.02},"lyrics":"archive","src":"index_files/songs/luis-bacalov-his-name-was-king-aa07ec.js"},{"id":"metallica-master-of-puppets-7566f1","meta":{"title":"Master Of Puppets","artist":"Metallica","album":"Master Of Puppets","year":"1986","duration":521.408},"lyrics":"archive","src":"index_files/songs/metallica-master-of-puppets-7566f1.js"},{"id":"metallica-nothing-else-matters-eeca6b","meta":{"title":"Nothing Else Matters","artist":"Metallica","album":"The Black Album","year":"1991","duration":391.858},"lyrics":"archive","src":"index_files/songs/metallica-nothing-else-matters-eeca6b.js"},{"id":"metallica-the-unforgiven-ii-5fe0de","meta":{"title":"The Unforgiven II","artist":"Metallica","album":"Reload","year":"1997","duration":399.154},"lyrics":"archive","src":"index_files/songs/metallica-the-unforgiven-ii-5fe0de.js"},{"id":"metallica-the-unforgiven-iii-91be77","meta":{"title":"The Unforgiven III","artist":"Metallica","album":"Death Magnetic ","year":"2008","duration":470.177},"lyrics":"archive","src":"index_files/songs/metallica-the-unforgiven-iii-91be77.js"},{"id":"nickelback-far-away-dd3b9c","meta":{"title":"Far Away","artist":"Nickelback","album":"All The Right Reasons","year":"2005","duration":242.312},"lyrics":"archive","src":"index_files/songs/nickelback-far-away-dd3b9c.js"},{"id":"nickelback-photograph-a62508","meta":{"title":"Photograph","artist":"Nickelback","album":"All The Right Reasons","year":"2005","duration":262.046},"lyrics":"archive","src":"index_files/songs/nickelback-photograph-a62508.js"},{"id":"nickelback-savin-me-6e7ef7","meta":{"title":"Savin Me","artist":"Nickelback","album":"All the Right Reasons","year":"2005","duration":226.542},"lyrics":"archive","src":"index_files/songs/nickelback-savin-me-6e7ef7.js"},{"id":"of-monsters-and-men-dirty-paws-66597b","meta":{"title":"Dirty Paws","artist":"Of Monsters and Men","album":"My Head is an Animal","year":"2011","duration":269.065},"lyrics":"archive","src":"index_files/songs/of-monsters-and-men-dirty-paws-66597b.js"},{"id":"outkast-hey-ya-15b994","meta":{"title":"Hey Ya!","artist":"OutKast","album":"The Love Below","year":"2003","duration":239.417},"lyrics":"archive","src":"index_files/songs/outkast-hey-ya-15b994.js"},{"id":"papa-roach-getting-away-with-murder-378917","meta":{"title":"Getting Away with Murder","artist":"Papa Roach","album":"Getting Away with Murder","year":"2004","duration":202.337},"lyrics":"archive","src":"index_files/songs/papa-roach-getting-away-with-murder-378917.js"},{"id":"papa-roach-last-resort-b036a0","meta":{"title":"Last Resort","artist":"Papa Roach","album":"Infest","year":"2000","duration":211.5},"lyrics":"archive","src":"index_files/songs/papa-roach-last-resort-b036a0.js"},{"id":"papa-roach-scars-ac2f2a","meta":{"title":"Scars","artist":"Papa Roach","album":"Getting Away with Murder","year":"2004","duration":219.775},"lyrics":"archive","src":"index_files/songs/papa-roach-scars-ac2f2a.js"},{"id":"pink-floyd-comfortably-numb-373488","meta":{"title":"Comfortably Numb","artist":"Pink Floyd","album":"Pulse","year":"1995","duration":572.285},"lyrics":"archive","src":"index_files/songs/pink-floyd-comfortably-numb-373488.js"},{"id":"pink-floyd-comfortably-numb-3c15c6","meta":{"title":"Comfortably Numb","artist":"Pink Floyd","album":"The Wall","year":"1979","duration":385.999},"lyrics":"archive","src":"index_files/songs/pink-floyd-comfortably-numb-3c15c6.js"},{"id":"pink-floyd-wish-you-were-here-347d75","meta":{"title":"Wish You Were Here","artist":"Pink Floyd","album":"Wish You Were HerePlums","year":"1975","duration":319.999},"lyrics":"archive","src":"index_files/songs/pink-floyd-wish-you-were-here-347d75.js"},{"id":"santana-corazon-espinado-3d7b29","meta":{"title":"Corazon Espinado","artist":"Santana","album":"Supernatural","year":"2000","duration":281.208},"lyrics":"archive","src":"index_files/songs/santana-corazon-espinado-3d7b29.js"},{"id":"santana-evil-ways-92bc1a","meta":{"title":"Evil Ways","artist":"Santana","album":"Santana","year":"1969","duration":236.439},"lyrics":"archive","src":"index_files/songs/santana-evil-ways-92bc1a.js"},{"id":"santana-maria-maria-d0e2cc","meta":{"title":"Maria Maria","artist":"Santana","album":"Supernatural","year":"1999","duration":267.755},"lyrics":"archive","src":"index_files/songs/santana-maria-maria-d0e2cc.js"},{"id":"santana-put-your-lights-on-cac809","meta":{"title":"Put Your Lights On","artist":"Santana","album":"Supernatural","year":"1999","duration":288.305},"lyrics":"archive","src":"index_files/songs/santana-put-your-lights-on-cac809.js"},{"id":"stevie-ray-vaughan-double-trouble-cold-shot-ce20d4","meta":{"title":"Cold Shot","artist":"Stevie Ray Vaughan & Double Trouble","album":"Couldn't Stand the Weather","year":"1984","duration":248.863},"lyrics":"archive","src":"index_files/songs/stevie-ray-vaughan-double-trouble-cold-shot-ce20d4.js"},{"id":"stevie-ray-vaughan-double-trouble-couldn-t-stand-the-weather-a78872","meta":{"title":"Couldn't Stand the Weather","artist":"Stevie Ray Vaughan & Double Trouble","album":"Couldn't Stand the Weather","year":"1984","duration":291.409},"lyrics":"archive","src":"index_files/songs/stevie-ray-vaughan-double-trouble-couldn-t-stand-the-weather-a78872.js"},{"id":"stevie-ray-vaughan-double-trouble-pride-and-joy-2cd4a5","meta":{"title":"Pride and Joy","artist":"Stevie Ray Vaughan & Double Trouble","album":"Texas Flood","year":"1983","duration":230.639},"lyrics":"archive","src":"index_files/songs/stevie-ray-vaughan-double-trouble-pride-and-joy-2cd4a5.js"},{"id":"stevie-ray-vaughan-double-trouble-texas-flood-b82e7c","meta":{"title":"Texas Flood","artist":"Stevie Ray Vaughan & Double Trouble","album":"Texas Flood","year":"1983","duration":329.719},"lyrics":"archive","src":"index_files/songs/stevie-ray-vaughan-double-trouble-texas-flood-b82e7c.js"},{"id":"stevie-ray-vaughan-mary-had-a-little-lamb-2007ea","meta":{"title":"Mary Had A Little Lamb","artist":"Stevie Ray Vaughan","album":"Texas Flood","year":"1983","duration":170.475},"lyrics":"archive","src":"index_files/songs/stevie-ray-vaughan-mary-had-a-little-lamb-2007ea.js"},{"id":"stevie-ray-vaughan-texas-flood-a0625a","meta":{"title":"Texas Flood","artist":"Stevie Ray Vaughan","album":"Texas Flood - 1983","year":"1983","duration":325.761},"lyrics":"archive","src":"index_files/songs/stevie-ray-vaughan-texas-flood-a0625a.js"},{"id":"stevie-wonder-superstition-687775","meta":{"title":"Superstition","artist":"Stevie Wonder","album":"Talking Book","year":"1973","duration":271.225},"lyrics":"archive","src":"index_files/songs/stevie-wonder-superstition-687775.js"},{"id":"the-all-american-rejects-dirty-little-secret-7829f9","meta":{"title":"Dirty Little Secret","artist":"The All-American Rejects","album":"Move Along","year":"2005","duration":196.962},"lyrics":"archive","src":"index_files/songs/the-all-american-rejects-dirty-little-secret-7829f9.js"},{"id":"the-all-american-rejects-gives-you-hell-f198fa","meta":{"title":"Gives You Hell","artist":"The All-American Rejects","album":"When the World Comes Down","year":"2008","duration":221.201},"lyrics":"archive","src":"index_files/songs/the-all-american-rejects-gives-you-hell-f198fa.js"},{"id":"the-all-american-rejects-move-along-240b99","meta":{"title":"Move Along","artist":"The All-American Rejects","album":"Move Along","year":"2005","duration":243.778},"lyrics":"archive","src":"index_files/songs/the-all-american-rejects-move-along-240b99.js"},{"id":"the-cure-friday-i-m-in-love-b0bdcd","meta":{"title":"Friday I'm in Love","artist":"The Cure","album":"Wish","year":"1992","duration":223.092},"lyrics":"archive","src":"index_files/songs/the-cure-friday-i-m-in-love-b0bdcd.js"},{"id":"the-who-the-seeker-d155ec","meta":{"title":"The Seeker","artist":"The Who","album":"Meaty Beaty Big and Bouncy","year":"1971","duration":204.958},"lyrics":"archive","src":"index_files/songs/the-who-the-seeker-d155ec.js"},{"id":"two-door-cinema-club-come-back-home-f0e178","meta":{"title":"Come Back Home","artist":"Two Door Cinema Club","album":"Tourist History","year":"2010","duration":205.542},"lyrics":"archive","src":"index_files/songs/two-door-cinema-club-come-back-home-f0e178.js"},{"id":"two-door-cinema-club-eat-that-up-it-s-good-for-you-c0c7fe","meta":{"title":"Eat That Up, It's Good For You","artist":"Two Door Cinema Club","album":"Tourist History","year":"2010","duration":226.861},"lyrics":"archive","src":"index_files/songs/two-door-cinema-club-eat-that-up-it-s-good-for-you-c0c7fe.js"},{"id":"two-door-cinema-club-handshake-47e792","meta":{"title":"Handshake","artist":"Two Door Cinema Club","album":"Beacon (Deluxe Edition)","year":"2012","duration":208.862},"lyrics":"archive","src":"index_files/songs/two-door-cinema-club-handshake-47e792.js"},{"id":"two-door-cinema-club-i-can-talk-877a77","meta":{"title":"I Can Talk","artist":"Two Door Cinema Club","album":"Tourist History","year":"2010","duration":178.638},"lyrics":"archive","src":"index_files/songs/two-door-cinema-club-i-can-talk-877a77.js"},{"id":"two-door-cinema-club-something-good-can-work-7bb143","meta":{"title":"Something Good Can Work","artist":"Two Door Cinema Club","album":"Tourist History","year":"2010","duration":164.572},"lyrics":"archive","src":"index_files/songs/two-door-cinema-club-something-good-can-work-7bb143.js"},{"id":"two-door-cinema-club-sun-47f43b","meta":{"title":"Sun","artist":"Two Door Cinema Club","album":"Beacon","year":"2012","duration":186.658},"lyrics":"archive","src":"index_files/songs/two-door-cinema-club-sun-47f43b.js"},{"id":"carlos-santana-ft-chad-kroeger-into-the-night-e74abb","meta":{"title":"Into The Night","artist":"Carlos Santana (ft Chad Kroeger)","album":"Single","year":"2007","duration":225.612},"lyrics":"web","src":"index_files/songs/carlos-santana-ft-chad-kroeger-into-the-night-e74abb.js"},{"id":"daft-punk-derezzed-00b456","meta":{"title":"Derezzed","artist":"Daft Punk","album":"TRON: Legacy","year":"2010","duration":104.119},"lyrics":"web","src":"index_files/songs/daft-punk-derezzed-00b456.js"},{"id":"daft-punk-the-son-of-flynn-645719","meta":{"title":"The Son of Flynn","artist":"Daft Punk","album":"TRON: Legacy","year":"2010","duration":96.225},"lyrics":"web","src":"index_files/songs/daft-punk-the-son-of-flynn-645719.js"},{"id":"daft-punk-tron-legacy-end-titles-99c05a","meta":{"title":"Tron Legacy End Titles","artist":"Daft Punk","album":"Tron Legacy OST","year":"2010","duration":198.369},"lyrics":"web","src":"index_files/songs/daft-punk-tron-legacy-end-titles-99c05a.js"},{"id":"echosmith-cool-kids-dd365d","meta":{"title":"Cool Kids","artist":"Echosmith","album":"Talking Dreams","year":"2014","duration":237.625},"lyrics":"web","src":"index_files/songs/echosmith-cool-kids-dd365d.js"},{"id":"eric-clapton-little-queen-of-spades-079f11","meta":{"title":"Little Queen Of Spades","artist":"Eric Clapton","album":"Me and Mr Johnson","year":"2004","duration":302.623},"lyrics":"web","src":"index_files/songs/eric-clapton-little-queen-of-spades-079f11.js"},{"id":"eric-clapton-me-and-the-devil-blues-362880","meta":{"title":"Me and the Devil Blues","artist":"Eric Clapton","album":"Me and Mr. Johnson","year":"2004","duration":177.612},"lyrics":"web","src":"index_files/songs/eric-clapton-me-and-the-devil-blues-362880.js"},{"id":"eric-johnson-gem-c74fd8","meta":{"title":"GEM","artist":"Eric Johnson","album":"Up Close","year":"2010","duration":252.077},"lyrics":"web","src":"index_files/songs/eric-johnson-gem-c74fd8.js"},{"id":"eric-johnson-manhattan-343902","meta":{"title":"Manhattan","artist":"Eric Johnson","album":"Venus Isle","year":"1996","duration":295.584},"lyrics":"web","src":"index_files/songs/eric-johnson-manhattan-343902.js"},{"id":"eric-johnson-s-r-v-ed4ab2","meta":{"title":"S.R.V.","artist":"Eric Johnson","album":"Venus Isle","year":"1996","duration":186.105},"lyrics":"web","src":"index_files/songs/eric-johnson-s-r-v-ed4ab2.js"},{"id":"florence-the-machine-dog-days-are-over-b7c583","meta":{"title":"Dog Days Are Over","artist":"Florence & The Machine","album":"Lungs","year":"2008","duration":262.022},"lyrics":"web","src":"index_files/songs/florence-the-machine-dog-days-are-over-b7c583.js"},{"id":"florence-the-machine-cosmic-love-f111d9","meta":{"title":"Cosmic Love","artist":"Florence + the Machine","album":"Lungs","year":"2009","duration":259.92},"lyrics":"web","src":"index_files/songs/florence-the-machine-cosmic-love-f111d9.js"},{"id":"joe-satriani-chords-of-life-8eaef1","meta":{"title":"Chords of Life","artist":"Joe Satriani","album":"Strange Beautiful Music","year":"2002","duration":256.662},"lyrics":"web","src":"index_files/songs/joe-satriani-chords-of-life-8eaef1.js"},{"id":"joe-satriani-why-c1cdd6","meta":{"title":"Why","artist":"Joe Satriani","album":"The Extremist","year":"1992","duration":288.544},"lyrics":"web","src":"index_files/songs/joe-satriani-why-c1cdd6.js"},{"id":"lumen-dotyanutsya-do-zvezdyi-801fac","meta":{"title":"Dotyanutsya do zvezdyi","artist":"Lumen","album":"MIR","year":"2009","duration":188.055},"lyrics":"web","src":"index_files/songs/lumen-dotyanutsya-do-zvezdyi-801fac.js"},{"id":"lumen-sid-nancy-6dddf8","meta":{"title":"Sid & Nancy","artist":"Lumen","album":"Bez Konservantov","year":"2003","duration":235.435},"lyrics":"web","src":"index_files/songs/lumen-sid-nancy-6dddf8.js"},{"id":"lumen-the-last-chance-2ba70f","meta":{"title":"The Last Chance","artist":"Lumen","album":"MIR","year":"2009","duration":164.94},"lyrics":"web","src":"index_files/songs/lumen-the-last-chance-2ba70f.js"},{"id":"metallica-enter-sandman-6012da","meta":{"title":"Enter Sandman","artist":"Metallica","album":"The Black Album","year":"1991","duration":334.702},"lyrics":"web","src":"index_files/songs/metallica-enter-sandman-6012da.js"},{"id":"metallica-one-b60a62","meta":{"title":"One","artist":"Metallica","album":"...And Justice For All","year":"1988","duration":443.899},"lyrics":"web","src":"index_files/songs/metallica-one-b60a62.js"},{"id":"metallica-sad-but-true-19daa4","meta":{"title":"Sad But True","artist":"Metallica","album":"Metallica","year":"1991","duration":329.649},"lyrics":"web","src":"index_files/songs/metallica-sad-but-true-19daa4.js"},{"id":"metallica-seek-and-destroy-7e25b5","meta":{"title":"Seek and Destroy","artist":"Metallica","album":"Kill 'Em All","year":"1983","duration":421.616},"lyrics":"web","src":"index_files/songs/metallica-seek-and-destroy-7e25b5.js"},{"id":"metallica-the-unforgiven-aa5e0e","meta":{"title":"The Unforgiven","artist":"Metallica","album":"The Black Album","year":"1991","duration":387.369},"lyrics":"web","src":"index_files/songs/metallica-the-unforgiven-aa5e0e.js"},{"id":"metallica-the-unforgiven-acoustic-17973f","meta":{"title":"The Unforgiven Acoustic","artist":"Metallica","album":"Metallica","year":"1991","duration":155.176},"lyrics":"web","src":"index_files/songs/metallica-the-unforgiven-acoustic-17973f.js"},{"id":"nickelback-animals-678ce7","meta":{"title":"Animals","artist":"Nickelback","album":"All the Right Reasons","year":"2005","duration":184.004},"lyrics":"web","src":"index_files/songs/nickelback-animals-678ce7.js"},{"id":"nickelback-burn-it-to-the-ground-c1116b","meta":{"title":"Burn it to the ground","artist":"Nickelback","album":"Dark Horse","year":"2008","duration":214.017},"lyrics":"web","src":"index_files/songs/nickelback-burn-it-to-the-ground-c1116b.js"},{"id":"nickelback-fight-for-all-the-wrong-reasons-91e7f0","meta":{"title":"Fight For All The Wrong Reasons","artist":"Nickelback","album":"All The Right Reasons","year":"2005","duration":226.326},"lyrics":"web","src":"index_files/songs/nickelback-fight-for-all-the-wrong-reasons-91e7f0.js"},{"id":"nickelback-follow-you-home-7588fa","meta":{"title":"Follow You Home","artist":"Nickelback","album":"All The Right Reasons","year":"2005","duration":260.662},"lyrics":"web","src":"index_files/songs/nickelback-follow-you-home-7588fa.js"},{"id":"nickelback-follow-you-home-c7a260","meta":{"title":"Follow You Home","artist":"Nickelback","album":"All The Right Reasons","year":"2005","duration":263.362},"lyrics":"web","src":"index_files/songs/nickelback-follow-you-home-c7a260.js"},{"id":"nickelback-sex-ac26af","meta":{"title":"SEX","artist":"Nickelback","album":"Dark Horse","year":"2008","duration":235.119},"lyrics":"web","src":"index_files/songs/nickelback-sex-ac26af.js"},{"id":"nickelback-something-in-your-mouth-da4280","meta":{"title":"Something In Your Mouth","artist":"Nickelback","album":"Dark Horse","year":"2008","duration":221.659},"lyrics":"web","src":"index_files/songs/nickelback-something-in-your-mouth-da4280.js"},{"id":"nickelback-something-in-your-mouth-507189","meta":{"title":"Something In Your Mouth","artist":"Nickelback","album":"Dark Horse","year":"2008","duration":219.88},"lyrics":"web","src":"index_files/songs/nickelback-something-in-your-mouth-507189.js"},{"id":"of-monsters-and-men-mountain-sound-153fd6","meta":{"title":"Mountain Sound","artist":"Of Monsters and Men","album":"My Head is an Animal","year":"2012","duration":216.519},"lyrics":"web","src":"index_files/songs/of-monsters-and-men-mountain-sound-153fd6.js"},{"id":"pink-floyd-gilmour-s-greatest-solos-52d613","meta":{"title":"Gilmour's Greatest Solos","artist":"Pink Floyd","album":"Various","year":"1975","duration":1593.999},"lyrics":"web","src":"index_files/songs/pink-floyd-gilmour-s-greatest-solos-52d613.js"},{"id":"priestess-lay-down-2f1527","meta":{"title":"Lay Down","artist":"Priestess","album":"Hello Master","year":"2005","duration":189.848},"lyrics":"web","src":"index_files/songs/priestess-lay-down-2f1527.js"},{"id":"santana-europa-7472c2","meta":{"title":"Europa","artist":"Santana","album":"Amigos","year":"1976","duration":309.065},"lyrics":"web","src":"index_files/songs/santana-europa-7472c2.js"},{"id":"santana-samba-pa-ti-d5d584","meta":{"title":"Samba pa Ti","artist":"Santana","album":"Abraxas","year":"1970","duration":291.045},"lyrics":"web","src":"index_files/songs/santana-samba-pa-ti-d5d584.js"},{"id":"steve-vai-bad-horsie-10405d","meta":{"title":"Bad Horsie","artist":"Steve Vai","album":"Alien Love Secrets","year":"1995","duration":353.707},"lyrics":"web","src":"index_files/songs/steve-vai-bad-horsie-10405d.js"},{"id":"steve-vai-tender-surrender-13dee3","meta":{"title":"Tender Surrender","artist":"Steve Vai","album":"Alien Love Secrets","year":"1995","duration":305.436},"lyrics":"web","src":"index_files/songs/steve-vai-tender-surrender-13dee3.js"},{"id":"stevie-ray-vaughan-double-trouble-scuttle-buttin-5476c8","meta":{"title":"Scuttle Buttin'","artist":"Stevie Ray Vaughan & Double Trouble","album":"Couldn't Stand the Weather","year":"1984","duration":121.77},"lyrics":"web","src":"index_files/songs/stevie-ray-vaughan-double-trouble-scuttle-buttin-5476c8.js"},{"id":"stevie-ray-vaughan-and-double-trouble-little-wing-9fb185","meta":{"title":"Little Wing","artist":"Stevie Ray Vaughan and Double Trouble","album":"The Sky Is Crying","year":"1991","duration":414.569},"lyrics":"web","src":"index_files/songs/stevie-ray-vaughan-and-double-trouble-little-wing-9fb185.js"},{"id":"the-cult-rain-4fe837","meta":{"title":"Rain","artist":"The Cult","album":"Love","year":"1985","duration":241.592},"lyrics":"web","src":"index_files/songs/the-cult-rain-4fe837.js"},{"id":"the-cult-sun-king-954c29","meta":{"title":"Sun King","artist":"The Cult","album":"Sonic Temple","year":"1989","duration":374.32},"lyrics":"web","src":"index_files/songs/the-cult-sun-king-954c29.js"},{"id":"two-door-cinema-club-undercover-martyn-e38225","meta":{"title":"Undercover Martyn","artist":"Two Door Cinema Club","album":"Tourist History","year":"2010","duration":172.119},"lyrics":"web","src":"index_files/songs/two-door-cinema-club-undercover-martyn-e38225.js"},{"id":"van-halen-panama-227e0b","meta":{"title":"Panama","artist":"Van Halen","album":"1984","year":"1983","duration":214.705},"lyrics":"web","src":"index_files/songs/van-halen-panama-227e0b.js"}]}</script>
+  
+  <script>
+/* ---------------------------------------------------------------------------
+ * clock.js -- playback clock for the note highway.
+ *
+ * The <audio> element is the MASTER. The chart is never "played" on its own
+ * timer, which is what causes drift in naive implementations.
+ *
+ * Problem: HTMLMediaElement.currentTime is updated at a coarse, browser-
+ * specific cadence (and is stale by the time you read it), so drawing with it
+ * directly makes notes judder at 60 fps.
+ * Solution: keep an anchor (mediaTime, perfTime) and extrapolate with the
+ * frame timestamp. Whenever the element reports a new currentTime we measure
+ * the error and slew towards it (small errors) or snap (seek/stall).
+ *
+ * Without audio (not converted yet / no decoder) the clock free-runs, so
+ * the chart is still usable silently. Audio attached later takes over at the
+ * current position.
+ * ------------------------------------------------------------------------- */
+(function (root) {
+  "use strict";
+  const NS = (root.RSHighway = root.RSHighway || {});
+
+  const SNAP_THRESHOLD = 0.05;  // s: larger errors -> hard resync (seek, stall, GC pause)
+  // Error correction is time-based (not per report) so it converges equally
+  // fast at 60 fps and on a slow machine rendering 20 fps. 0.33 s matches the
+  // previously tuned 5 %-per-frame at 60 fps.
+  const SLEW_TAU = 0.33;        // s
+
+  class SongClock {
+    constructor() {
+      this.audio = null;
+      this.duration = 0;
+      this.rate = 1;
+      this.playing = false;       // transport intent
+      this._running = false;      // clock actually advancing
+      this._anchorMedia = 0;
+      this._anchorPerf = 0;
+      this._lastReported = NaN;
+      this._listeners = null;
+      this.onEnded = null;
+      this.onStateChange = null;
+      this.partialAudio = false;    // true while the attached audio is a quick-start clip
+    }
+
+    /** Current media time (s) at performance timestamp `nowMs`. */
+    time(nowMs) {
+      let t = this._anchorMedia;
+      if (this._running && !this._waiting) t += ((nowMs - this._anchorPerf) / 1000) * this.rate;
+      if (t < 0) return 0;
+      return this.duration > 0 && t > this.duration ? this.duration : t;
+    }
+
+    /** Call once per animation frame with the rAF timestamp. */
+    tick(nowMs) {
+      const a = this.audio;
+      if (a && this._running && !a.paused) {
+        const reported = a.currentTime;
+        if (reported !== this._lastReported) {
+          this._lastReported = reported;
+          if (this._waiting) {                       // paused for the audio to catch up
+            if (reported >= this._anchorMedia - 0.002) this._anchor(reported, nowMs);
+            return;
+          }
+          const err = reported - this.time(nowMs);
+          const since = this._lastReportPerf ? (nowMs - this._lastReportPerf) / 1000 : 1 / 60;
+          this._lastReportPerf = nowMs;
+          if (err < -SNAP_THRESHOLD && err > -0.5) {
+            // audio fell behind (start-up, stall): wait for it -- never step back while playing
+            this._anchor(this.time(nowMs), nowMs);
+            this._waiting = true;
+          } else if (Math.abs(err) > SNAP_THRESHOLD) this._anchor(reported, nowMs);
+          else this._anchorMedia += err * (1 - Math.exp(-Math.min(since, 0.25) / SLEW_TAU));
+        }
+      } else if (!a && this._running && this.duration > 0 && this.time(nowMs) >= this.duration) {
+        this._stopAt(this.duration);
+        if (this.onEnded) this.onEnded();
+      }
+    }
+
+    play() {
+      if (this.playing) return;
+      this.playing = true;
+      if (this.audio) {
+        const p = this.audio.play();        // 'playing' event anchors the clock
+        if (p && p.catch) p.catch((e) => { if (this._holding || e.name === "AbortError") return; this.playing = false; this._emit(e); });
+      } else {
+        if (this.duration > 0 && this._anchorMedia >= this.duration) this._anchorMedia = 0;
+        this._anchor(this._anchorMedia, performance.now());
+        this._running = true;
+      }
+      this._emit();
+    }
+
+    pause() {
+      if (!this.playing) return;
+      const now = performance.now();
+      this.playing = false;
+      this._holding = false;
+      if (this.audio) {
+        this.audio.pause();
+        this._stopAt(this.audio.currentTime);
+      } else {
+        this._stopAt(this.time(now));
+      }
+      this._emit();
+    }
+
+    toggle() { this.playing ? this.pause() : this.play(); }
+
+    seek(t) {
+      t = Math.max(0, this.duration > 0 ? Math.min(t, this.duration) : t);
+      this._anchor(t, performance.now());
+      if (this.audio) this.audio.currentTime = t;   // 'seeked' re-anchors precisely
+      if (this._holding) {                           // leaving a hold: resume if playing
+        this._holding = false;
+        if (this.playing) {
+          if (this.audio) { const p = this.audio.play(); if (p && p.catch) p.catch(() => {}); }
+          else this._running = true;
+        }
+      }
+      this._emit();
+    }
+
+    /**
+     * Freeze at `t` (default: now) but keep the intent to play: used while the
+     * rest of the audio is still loading (quick-start clip ran out, or a seek
+     * beyond it). Attaching the next audio element resumes playback.
+     */
+    hold(t) {
+      const now = performance.now();
+      if (t == null) t = this.time(now);
+      this._holding = true;
+      if (this.audio && !this.audio.paused) { this._ignorePause = true; this.audio.pause(); }
+      this._stopAt(t);
+      this._emit();
+    }
+    get holding() { return !!this._holding; }
+
+    /** Start "playing" in the held state (e.g. play pressed beyond a quick-start clip). */
+    playHeld(t) {
+      this.playing = true;
+      this.hold(t);
+    }
+
+    /**
+     * Make `audio` (already playing, aligned with the current one) the master
+     * without seeking it. Returns the previous element, still playing: the
+     * caller fades it out and releases it.
+     */
+    handover(audio) {
+      const old = this.audio;
+      if (old && this._listeners) for (const k in this._listeners) old.removeEventListener(k, this._listeners[k]);
+      this.audio = null; this._listeners = null;
+      this._bind(audio);
+      this.audio = audio;
+      // no re-anchor: the new element is already aligned with the old one, so the
+      // clock keeps its own continuous timeline and the normal slew absorbs the
+      // few ms of difference (a hard anchor here showed up as a visible jump)
+      this._lastReported = NaN;
+      this._lastReportPerf = 0;
+      this._running = !audio.paused;
+      return old;
+    }
+
+    setRate(r) {
+      const now = performance.now();
+      this._anchor(this.time(now), now);
+      this.rate = r;
+      if (this.audio) {
+        this.audio.playbackRate = r;
+        this.audio.preservesPitch = true;
+      }
+    }
+
+    /** Hand the clock over to an <audio> element, keeping the position. */
+    attach(audio) {
+      this.detach();
+      const now = performance.now();
+      const pos = this.time(now);
+      this._holding = false;
+      this._bind(audio);
+      this.audio = audio;
+      audio.playbackRate = this.rate;
+      audio.preservesPitch = true;
+      audio.currentTime = pos;
+      if (this.playing) {
+        // keep free-running until the element actually starts ('playing')
+        const p = audio.play();
+        if (p && p.catch) p.catch((e) => { if (this._holding || e.name === "AbortError") return; this.playing = false; this._stopAt(pos); this._emit(e); });
+      }
+    }
+
+    _bind(audio) {
+      const on = {
+        playing: () => {
+          if (this._holding) { this._ignorePause = true; audio.pause(); return; }   // a late 'playing' must not end a hold
+          this._anchor(audio.currentTime, performance.now()); this._running = true;
+        },
+        play: () => { if (!this.playing) { this.playing = true; this._emit(); } },
+        pause: () => {                                             // also OS media keys
+          if (this._ignorePause) { this._ignorePause = false; return; }   // our own hold()
+          if (this._holding) return;
+          this._stopAt(audio.currentTime);
+          if (this.playing && !audio.ended) { this.playing = false; this._emit(); }
+        },
+        // (while holding, the clock stays at the hold point: late events from the
+        //  element -- e.g. 'waiting' after a play() that was just paused -- must not move it)
+        waiting: () => { if (!this._holding) this._stopAt(audio.currentTime); },      // buffering stall
+        seeked: () => { if (!this._holding) this._anchor(audio.currentTime, performance.now()); },
+        ended: () => {
+          // a quick-start clip running out is not the end of the song: hold
+          if (this.partialAudio && this.playing) { this.hold(audio.duration); return; }
+          this.playing = false; this._stopAt(audio.duration); this._emit(); if (this.onEnded) this.onEnded();
+        },
+        durationchange: () => { if (isFinite(audio.duration)) this.duration = Math.max(this.duration, audio.duration); },
+      };
+      for (const k in on) audio.addEventListener(k, on[k]);
+      this._listeners = on;
+    }
+
+    detach() {
+      const a = this.audio;
+      if (!a) return;
+      const now = performance.now();
+      const pos = this.time(now);
+      for (const k in this._listeners) a.removeEventListener(k, this._listeners[k]);
+      a.pause();
+      this.audio = null;
+      this._listeners = null;
+      this._anchor(pos, now);
+      this._running = this.playing;             // continue silently if playing
+    }
+
+    _anchor(media, perf) {
+      this._anchorMedia = media;
+      this._anchorPerf = perf;
+      this._lastReported = NaN;
+      this._lastReportPerf = 0;
+      this._waiting = false;
+    }
+    _stopAt(media) {
+      this._running = false;
+      this._anchor(media, performance.now());
+    }
+    _emit(err) { if (this.onStateChange) this.onStateChange(this, err); }
+  }
+
+  /**
+   * AudioOut -- routes playback through a Web Audio graph so the remaining
+   * piece of the A/V chain, the audio device's output latency, is known
+   * (AudioContext.outputLatency) and can be compensated automatically:
+   *   shown chart time = clock - outputLatency - manual offset
+   * Measured in Chromium with an AudioWorklet tap: without compensation the
+   * picture leads the sound by ~outputLatency; with it the residual is a few ms.
+   * The context is created on the first user gesture; an element is routed only
+   * once the context is running (otherwise it keeps playing natively).
+   */
+  class AudioOut {
+    constructor() {
+      this.ctx = null; this.failed = false; this._latency = 0; this._latencyAt = 0;
+      // until the device reports (first ~0.5 s), use the value remembered from last time
+      try { this._remembered = Math.max(0, Math.min(0.5, +root.localStorage.getItem("rs-output-latency") || 0)); } catch (e) { this._remembered = 0; }
+    }
+    get ready() { return !!this.ctx && this.ctx.state === "running"; }
+    async ensure() {
+      if (this.ctx || this.failed) return this.ready;
+      const AC = root.AudioContext || root.webkitAudioContext;
+      if (!AC) { this.failed = true; return false; }
+      try {
+        this.ctx = new AC({ latencyHint: "interactive" });
+        if (this.ctx.state !== "running") await Promise.race([this.ctx.resume(), new Promise((r) => setTimeout(r, 400))]);
+      } catch (e) { this.failed = true; this.ctx = null; }
+      return this.ready;
+    }
+    /** Route an element through the graph (once); gives it a gain node for fades. */
+    route(audio) {
+      if (!audio || audio._gain || !this.ready) return !!(audio && audio._gain);
+      try {
+        audio._src = this.ctx.createMediaElementSource(audio);
+        audio._gain = this.ctx.createGain();
+        audio._src.connect(audio._gain).connect(this.ctx.destination);
+        return true;
+      } catch (e) { return false; }
+    }
+    /** Device output latency in seconds (0 if unknown), refreshed at most once a second. */
+    latency(nowMs) {
+      if (!this.ready) return 0;
+      if (nowMs - this._latencyAt > (this._latency > 0 ? 1000 : 200)) {   // poll fast until the device reports
+        this._latencyAt = nowMs;
+        const l = +this.ctx.outputLatency;
+        this._latency = isFinite(l) && l > 0 && l < 1 ? l : 0;
+        if (this._latency > 0) { try { root.localStorage.setItem("rs-output-latency", String(this._latency)); } catch (e) { /* private mode */ } }
+      }
+      return this._latency || this._remembered;
+    }
+  }
+  /** Volume that works for routed (gain node) and plain elements. */
+  AudioOut.setVolume = (audio, v) => { if (audio._gain) audio._gain.gain.value = v; else audio.volume = v; };
+
+  NS.SongClock = SongClock;
+  NS.AudioOut = AudioOut;
+})(window);
+</script>
+<script>
+/* ---------------------------------------------------------------------------
+ * dds.js -- minimal DirectDraw Surface decoder for Rocksmith album art.
+ * Supports DXT1 (BC1, used by all sample songs), DXT3 (BC2), DXT5 (BC3) and
+ * uncompressed 32-bit BGRA. Returns ImageData for the top mip level.
+ * ------------------------------------------------------------------------- */
+(function (root) {
+  "use strict";
+  const NS = (root.RSHighway = root.RSHighway || {});
+
+  function rgb565(c, out, o) {
+    const r = (c >> 11) & 31, g = (c >> 5) & 63, b = c & 31;
+    out[o] = (r << 3) | (r >> 2); out[o + 1] = (g << 2) | (g >> 4); out[o + 2] = (b << 3) | (b >> 2); out[o + 3] = 255;
+  }
+
+  /** @param bytes Uint8Array of a .dds file. */
+  function decodeDDS(bytes) {
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    if (dv.getUint32(0, true) !== 0x20534444) throw new Error("not a DDS file");   // "DDS "
+    const h = dv.getUint32(12, true), w = dv.getUint32(16, true);
+    const pfFlags = dv.getUint32(80, true);
+    const fourCC = String.fromCharCode(bytes[84], bytes[85], bytes[86], bytes[87]);
+    const px = new Uint8ClampedArray(w * h * 4);
+    let off = 128;
+
+    if (!(pfFlags & 4)) {                                   // uncompressed (assume 32-bit BGRA)
+      for (let i = 0; i < w * h; i++, off += 4) {
+        px[i * 4] = bytes[off + 2]; px[i * 4 + 1] = bytes[off + 1]; px[i * 4 + 2] = bytes[off]; px[i * 4 + 3] = bytes[off + 3];
+      }
+      return new ImageData(px, w, h);
+    }
+    if (!/^DXT[135]$/.test(fourCC)) throw new Error("unsupported DDS format " + fourCC);
+
+    const pal = new Uint8Array(16), alpha = new Uint8Array(16);
+    for (let by = 0; by < h; by += 4) {
+      for (let bx = 0; bx < w; bx += 4) {
+        alpha.fill(255);
+        if (fourCC === "DXT3") {                            // explicit 4-bit alpha
+          for (let i = 0; i < 16; i++) alpha[i] = ((bytes[off + (i >> 1)] >> ((i & 1) * 4)) & 15) * 17;
+          off += 8;
+        } else if (fourCC === "DXT5") {                     // interpolated alpha
+          const a0 = bytes[off], a1 = bytes[off + 1], av = [a0, a1];
+          for (let i = 1; i < (a0 > a1 ? 7 : 5); i++) av.push(a0 > a1 ? ((7 - i) * a0 + i * a1) / 7 : ((5 - i) * a0 + i * a1) / 5);
+          if (a0 <= a1) av.push(0, 255);
+          let bits = 0, nb = 0, p = off + 2;
+          for (let i = 0; i < 16; i++) {
+            while (nb < 3) { bits |= bytes[p++] << nb; nb += 8; }
+            alpha[i] = av[bits & 7]; bits >>= 3; nb -= 3;
+          }
+          off += 8;
+        }
+        const c0 = dv.getUint16(off, true), c1 = dv.getUint16(off + 2, true), idx = dv.getUint32(off + 4, true);
+        off += 8;
+        rgb565(c0, pal, 0); rgb565(c1, pal, 4);
+        const four = c0 > c1 || fourCC !== "DXT1";
+        for (let k = 0; k < 3; k++) {
+          pal[8 + k] = four ? (2 * pal[k] + pal[4 + k]) / 3 : (pal[k] + pal[4 + k]) / 2;
+          pal[12 + k] = four ? (pal[k] + 2 * pal[4 + k]) / 3 : 0;
+        }
+        pal[11] = 255; pal[15] = four ? 255 : 0;
+        for (let i = 0; i < 16; i++) {
+          const x = bx + (i & 3), y = by + (i >> 2);
+          if (x >= w || y >= h) continue;
+          const c = ((idx >> (2 * i)) & 3) * 4, o = (y * w + x) * 4;
+          px[o] = pal[c]; px[o + 1] = pal[c + 1]; px[o + 2] = pal[c + 2];
+          px[o + 3] = Math.min(pal[c + 3], alpha[i]);
+        }
+      }
+    }
+    return new ImageData(px, w, h);
+  }
+
+  /** base64 .dds -> data: URL (PNG) usable as <img src>. */
+  NS.ddsToDataURL = function (b64) {
+    const bin = atob(b64), bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const img = decodeDDS(bytes), c = document.createElement("canvas");
+    c.width = img.width; c.height = img.height;
+    c.getContext("2d").putImageData(img, 0, 0);
+    return c.toDataURL("image/png");
+  };
+  NS.decodeDDS = decodeDDS;
+})(window);
+</script>
+<script>
+/* ---------------------------------------------------------------------------
+ * karaoke.js -- synchronized karaoke lyrics for RockShiny.
+ *
+ * Host-agnostic: the same player runs inside Shiny (karaoke-shiny.js, an
+ * output binding) and in a standalone HTML page (karaoke-page.js, written by
+ * karaoke_export_html()). It needs clock.js (SongClock, AudioOut) and dds.js
+ * (album art) from inst/highway -- the note highway's own sync machinery:
+ *
+ *   <audio> = master clock, extrapolated per frame (SongClock), drawn for the
+ *   moment the frame is on screen, minus the device output latency (AudioOut,
+ *   Web Audio) and a manual offset. Lyrics are therefore highlighted when the
+ *   syllable is *heard*, not when the element reports it.
+ *
+ *   RSKaraoke.prepare(json)     payload (karaoke_json() in R) -> song model
+ *   RSKaraoke.state(song, t)    pure timing model: which line / syllable when
+ *   RSKaraoke.AudioDeck         audio element(s): quick-start clip -> full file
+ *                               handover, Web Audio routing, latency
+ *   RSKaraoke.KaraokePlayer     view + transport + keys + rAF loop
+ * ------------------------------------------------------------------------- */
+(function (root) {
+  "use strict";
+  const HW = root.RSHighway || {};
+  const K = (root.RSKaraoke = root.RSKaraoke || {});
+
+  // ---- timing rules (seconds) -------------------------------------------------------
+  const LEAD = 0.5;        // a line becomes current this long before its first syllable...
+  const LATE = 0.05;       // ...but at least this long before it (when the previous line runs late)
+  const HOLD = 1.0;        // a finished line stays current this long if nothing follows soon
+  const BREAK = 4;         // gaps of at least this long are instrumental breaks (cue + countdown)
+  const COUNT_IN = 3;      // count-in dots during the last seconds of an intro / break
+  const MIN_WIPE = 0.08;   // shortest highlight wipe of one syllable
+  K.TIMING = { LEAD, LATE, HOLD, BREAK, COUNT_IN, MIN_WIPE };
+
+  const upperBound = (a, x) => { let lo = 0, hi = a.length; while (lo < hi) { const m = (lo + hi) >>> 1; if (a[m] <= x) lo = m + 1; else hi = m; } return lo; };
+  const clamp = (x, a, b) => (x < a ? a : x > b ? b : x);
+  function h(tag, cls, parent, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function fmt(t) {
+    if (!isFinite(t) || t < 0) t = 0;
+    const m = Math.floor(t / 60), s = Math.floor(t % 60);
+    return `${m}:${s < 10 ? "0" : ""}${s}`;
+  }
+  K.fmtTime = fmt;
+  const arr = (x) => (x == null ? [] : Array.isArray(x) ? x : [x]);   // tolerate unboxed length-1 columns
+
+  // ---- song model ---------------------------------------------------------------------
+  /**
+   * json: {format, songKey, meta: {title, artist, album, year, duration},
+   *        vocals: {t, d, w, j, l}, sections: {t, name, label}, art?, audio?}
+   * -> {songKey, meta, lines: [{start, end, words: [{t, d, w, j}], wordT, text}],
+   *     showAt (when each line becomes current), sections, cues (section label
+   *     before line i), duration, art, audio}
+   */
+  K.prepare = function (json) {
+    const j = typeof json === "string" ? JSON.parse(json) : json || {};
+    let v = j.vocals || {};
+    // lyrics that are not in the archive: LRC text (sidecar .lrc or LRCLIB), see karaoke-sync.js
+    const lyr = j.lyrics || null;
+    let lrc = null;
+    if (!arr(v.t).length && lyr && lyr.lrc && K.parseLRC) {
+      lrc = K.parseLRC(lyr.lrc);
+      v = K.vocalsFromLRC(lrc);
+      const shift = (+lyr.offsetMs || 0) / 1000;                 // automatic alignment (or a cached one)
+      if (shift) v.t = v.t.map((x) => +(x + shift).toFixed(3));
+    }
+    const t = arr(v.t), d = arr(v.d), w = arr(v.w), jn = arr(v.j), li = arr(v.l), nn = arr(v.n);   // n: charted pitches (optional)
+    const byId = new Map(), lines = [];
+    for (let i = 0; i < t.length; i++) {
+      const id = li[i] == null ? 0 : +li[i];
+      let L = byId.get(id);
+      if (!L) { L = { words: [] }; byId.set(id, L); lines.push(L); }
+      const W = { t: +t[i], d: Math.max(0, +d[i] || 0), w: w[i] == null ? "" : String(w[i]), j: !!+jn[i] };
+      if (nn.length && nn[i] != null && +nn[i] !== 254) W.n = +nn[i];
+      L.words.push(W);
+    }
+    for (const L of lines) L.words.sort((a, b) => a.t - b.t);
+    lines.sort((a, b) => a.words[0].t - b.words[0].t);
+    // lyrics timed per line: syllable times are estimated (K.timeLine), not measured
+    const estimated = !!lrc && lrc.synced === "line";
+    for (const L of lines) {
+      L.start = L.words[0].t;
+      L.end = 0;
+      for (const W of L.words) L.end = Math.max(L.end, W.t + Math.max(W.d, 0.3));
+      L.wordT = L.words.map((W) => W.t);
+      L.text = L.words.map((W) => W.w + (W.j ? "" : " ")).join("").trim();
+    }
+    // when each line becomes "current": LEAD before its first syllable, or as soon as
+    // the previous line has finished when that is later -- never after LATE before it
+    const showAt = lines.map((L, k) => {
+      if (k === 0) return L.start - LEAD;
+      return clamp(lines[k - 1].end - 0.05, L.start - LEAD, L.start - LATE);
+    });
+    for (let k = 1; k < showAt.length; k++) showAt[k] = Math.max(showAt[k], showAt[k - 1]);
+
+    const s = j.sections || {};
+    const sections = { t: arr(s.t).map(Number), name: arr(s.name).map(String), label: arr(s.label || s.name).map(String) };
+    sections.n = sections.t.length;
+    // Section names in the lyrics: Rocksmith sections are fine-grained ("Verse 1" ...
+    // "Verse 11", every few bars), so a label goes before a line only when the kind
+    // of section changes (Verse -> Chorus), or when another kind lies in between
+    // (Verse, solo, Verse). A line belongs to the section holding its midpoint:
+    // sung pick-ups often start just before the section boundary.
+    const kind = (i) => (i < 0 ? null : sections.label[i].replace(/\s+\d+$/, ""));
+    const cues = new Array(lines.length).fill(null);
+    let prevSi = -1;
+    lines.forEach((L, k) => {
+      const si = upperBound(sections.t, (L.start + L.end) / 2) - 1;
+      if (si < 0) { prevSi = si; return; }
+      let change = k === 0 || kind(si) !== kind(prevSi);
+      for (let x = Math.max(prevSi + 1, 0); x < si && !change; x++) change = kind(x) !== kind(si);
+      if (change && kind(si)) cues[k] = kind(si);
+      prevSi = si;
+    });
+    const meta = j.meta || {};
+    const lastEnd = lines.length ? lines[lines.length - 1].end : 0;
+    const lyrics = lyr ? Object.assign({}, lyr, { synced: lrc ? lrc.synced : "syllable",
+      plain: lrc && lrc.synced === "none" ? lrc.lines.map((x) => x.text) : null }) : { source: "archive", synced: "syllable" };
+    return {
+      format: j.format, songKey: j.songKey || null, meta, lines, showAt, sections, cues, lyrics, estimated,
+      duration: Math.max(+meta.duration || 0, lastEnd + 2), art: j.art || null, audio: j.audio || null,
+    };
+  };
+
+  /**
+   * Timing model (pure): what to show at lyric time t.
+   * -> {mode, focus, word, p, until}
+   *    mode  "empty" | "intro" (before the first line) | "sing" | "break"
+   *          (long instrumental gap: the next line is previewed) | "outro"
+   *    focus line index in view; word = syllable being sung (-1: none yet,
+   *    words.length: all sung); p = wipe progress of that syllable (0..1);
+   *    until = start of the awaited line (intro / break).
+   */
+  K.state = function (S, t) {
+    const L = S.lines, n = L.length;
+    if (!n) return { mode: "empty", focus: -1, word: -1, p: 0 };
+    const k = upperBound(S.showAt, t) - 1;                  // last line whose showAt <= t
+    if (k < 0) return { mode: "intro", focus: 0, word: -1, p: 0, until: L[0].start };
+    const cur = L[k];
+    if (t >= cur.end + HOLD) {
+      if (k + 1 >= n) return { mode: "outro", focus: k, word: cur.words.length, p: 1 };
+      if (L[k + 1].start - cur.end >= BREAK) return { mode: "break", focus: k + 1, word: -1, p: 0, until: L[k + 1].start };
+    }
+    const w = upperBound(cur.wordT, t) - 1;                 // last syllable that has started
+    let p = 0;
+    if (w >= 0) { const W = cur.words[w]; p = clamp((t - W.t) / Math.max(W.d, MIN_WIPE), 0, 1); }
+    return { mode: "sing", focus: k, word: w, p };
+  };
+
+  // ---- audio --------------------------------------------------------------------------
+  // Formats the R side may encode (ids must match AUDIO_FORMATS in R/audio.R).
+  const AUDIO_MIME = {
+    ogg: 'audio/ogg; codecs="vorbis"', m4a: 'audio/mp4; codecs="mp4a.40.2"',
+    opus: 'audio/ogg; codecs="opus"', flac: "audio/flac", wav: 'audio/wav; codecs="1"',
+  };
+  K.playableFormats = function () {
+    const a = document.createElement("audio");
+    return Object.keys(AUDIO_MIME).filter((k) => a.canPlayType(AUDIO_MIME[k]) !== "");
+  };
+
+  /**
+   * AudioDeck -- the song's <audio> element(s) behind a SongClock.
+   * kind "head" = quick-start clip of the first `seconds` (playback starts at
+   * once; past its end the clock *holds*), kind "full" = the whole song. A full
+   * file arriving while the clip plays is started muted, aligned by nudging its
+   * playbackRate, cross-faded in 80 ms and made the clock master without a gap
+   * (the algorithm of the note highway, binding.js). Elements join the Web Audio
+   * graph (-> known output latency) only while nothing plays.
+   * hooks: {status(text, level), changed()}
+   */
+  class AudioDeck {
+    constructor(hooks) {
+      this.hooks = hooks || {};
+      this.clock = new HW.SongClock();
+      this.out = new HW.AudioOut();
+      this.audio = null; this.kind = null; this.key = null; this.headLimit = Infinity;
+      this.autoLatency = true;
+      this.handoverError = null;
+    }
+    _status(text, level) { if (this.hooks.status) this.hooks.status(text, level); }
+
+    /** Attach audio for song `key`. `url` is fetched into a Blob (seeking never
+     *  depends on HTTP Range support); relative URLs in a page opened from disk
+     *  (file://, where fetch() is not allowed) are loaded by the element directly. */
+    async set(url, key, kind, seconds) {
+      kind = kind === "head" ? "head" : "full";
+      if (key && this.key && key !== this.key) return false;            // stale
+      if (this.kind === "full" || (kind === "head" && this.kind === "head")) return false;
+      if (!this.audio) this._status(kind === "head" ? "Loading quick-start audio\u2026" : "Loading audio\u2026", "info");
+      let audio;
+      try {
+        let src = url, blobUrl = null;
+        // a page opened from disk cannot fetch() files next to it: the element loads those directly
+        const direct = location.protocol === "file:" && !/^(blob|data|https?):/i.test(url);
+        if (!direct) {
+          const resp = await fetch(url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          blobUrl = src = URL.createObjectURL(await resp.blob());
+        }
+        if ((key && this.key && key !== this.key) || this.kind === "full") { if (blobUrl) URL.revokeObjectURL(blobUrl); return false; }
+        audio = new Audio();
+        audio.preload = "auto";
+        audio._url = blobUrl;
+        audio._direct = direct;     // its samples are off limits (file://): never routed through Web Audio
+        audio.src = src;
+        if (kind === "full" && !this.clock.playing) this.joinGraph(audio);
+        await new Promise((resolve, reject) => {
+          audio.addEventListener("canplaythrough", resolve, { once: true });
+          audio.addEventListener("error", () => reject(new Error("this browser cannot play the audio format")), { once: true });
+        });
+      } catch (e) {
+        this._status(`Audio failed: ${e.message}`, "error");
+        return false;
+      }
+      if ((key && this.key && key !== this.key) || this.kind === "full") { this._release(audio); return false; }
+      if (kind === "full" && this.kind === "head" && this.audio && this.clock.playing && !this.clock.holding) {
+        await this._handover(audio);
+      } else {
+        this.unload();
+        this.audio = audio;
+        this.clock.partialAudio = kind === "head";
+        this.clock.attach(audio);                                       // resumes a hold if playing
+      }
+      this.kind = kind;
+      this.headLimit = kind === "head" ? Math.max(0, (+seconds || audio.duration || 0) - 0.25) : Infinity;
+      if (kind === "full" && isFinite(audio.duration)) this.clock.duration = Math.max(this.clock.duration, audio.duration);
+      this._status("", "clear");
+      if (this.hooks.changed) this.hooks.changed();
+      return true;
+    }
+
+    async _handover(full) {
+      const head = this.audio, rate = this.clock.rate, vol = HW.AudioOut.setVolume;
+      const frame = () => new Promise((r) => requestAnimationFrame(r));
+      full.muted = true; full.preservesPitch = true; full.playbackRate = rate;
+      full.currentTime = head.currentTime + 0.08;
+      try { await full.play(); } catch (e) { /* plain swap below */ }
+      let smooth = null, aligned = false;
+      const t0 = performance.now();
+      while (performance.now() - t0 < 4000 && !full.paused) {
+        await frame();
+        if (head.paused || !this.clock.playing || this.audio !== head) break;
+        const d = full.currentTime - head.currentTime;                   // + = full ahead
+        if (Math.abs(d) > 0.5) { full.currentTime = head.currentTime + 0.08; smooth = null; continue; }
+        smooth = smooth == null ? d : smooth * 0.6 + d * 0.4;
+        if (Math.abs(smooth) < 0.006) { aligned = true; break; }
+        full.playbackRate = rate * (1 - clamp(smooth * 3, -0.12, 0.12));
+      }
+      full.playbackRate = rate;
+      this.handoverError = aligned ? smooth : null;
+      if (!aligned || full.paused || this.audio !== head || !this.clock.playing) {
+        full.pause(); full.muted = false;                                // plain swap at the current position
+        this.unload();
+        this.audio = full; this.clock.partialAudio = false; this.clock.attach(full);
+        return;
+      }
+      vol(full, 0); full.muted = false;
+      const old = this.clock.handover(full);
+      this.clock.partialAudio = false;
+      this.audio = full;
+      const f0 = performance.now();
+      while (performance.now() - f0 < 80) {
+        await frame();
+        const k = Math.min(1, (performance.now() - f0) / 80);
+        vol(full, k); vol(old, 1 - k);
+      }
+      vol(full, 1);
+      this._release(old);
+    }
+
+    /** Route the full audio through Web Audio (output-latency compensation); only at discontinuities. */
+    joinGraph(audio) {
+      audio = audio || this.audio;
+      if (!audio || audio._gain || !(this.autoLatency || this.wantGraph) || !this.out.ready) return false;
+      if (audio === this.audio && this.kind !== "full") return false;
+      // an element playing a file next to a page opened from disk: Web Audio would get silence
+      // from it ("outputs zeroes due to CORS access restrictions"), so it plays on its own
+      if (audio._direct) return false;
+      return this.out.route(audio);
+    }
+    /** Device output latency (s) to compensate now: only when the playing element is routed. */
+    latency(nowMs) {
+      const a = this.audio;
+      if (!a || !a._gain) return 0;
+      return (this.autoLatency ? this.out.latency(nowMs) : 0) + (a._voice ? a._voiceLatency || 0 : 0);   // + the voice processing (karaoke-voice.js)
+    }
+
+    _release(a) {
+      if (!a) return;
+      a.pause(); a.removeAttribute("src"); a.load();
+      if (a._url) URL.revokeObjectURL(a._url);
+    }
+    unload() {
+      this.clock.detach();
+      this.clock.partialAudio = false;
+      this._release(this.audio);
+      this.audio = null; this.kind = null; this.headLimit = Infinity;
+    }
+    /** A new song: drop its audio, rewind. */
+    reset(key, duration) {
+      this.unload();
+      this.key = key || null;
+      this.clock.pause();
+      this.clock.duration = duration || 0;
+      this.clock.seek(0);
+    }
+  }
+  K.AudioDeck = AudioDeck;
+
+  // ---- player -------------------------------------------------------------------------
+  const ICON = {
+    play: '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>',
+    restart: '<svg viewBox="0 0 24 24"><path d="M12 5V2L7 6l5 4V7a5 5 0 1 1-5 5H5a7 7 0 1 0 7-7z"/></svg>',
+    prev: '<svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>',
+    next: '<svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM6 18l8.5-6L6 6z"/></svg>',
+    mic: '<svg viewBox="0 0 24 24"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z"/></svg>',
+    note: '<svg viewBox="0 0 24 24"><path d="M12 3v10.55A4 4 0 1 0 14 17V7h4V3h-6z"/></svg>',
+  };
+  const DEFAULTS = { view: "stage", textScale: 1, countIn: true, sectionLabels: true, backdrop: true,
+                     offsetMs: 0, autoLatency: true, playbackRate: 1 };
+
+  /**
+   * KaraokePlayer(el, hooks) -- hooks (all optional):
+   *   onReady({songKey, audio: "none"|"head"|"full", formats, nonce})  after each song load
+   *   onLatency({outputMs, routed, auto})                               when compensation changes
+   *   onState({t, playing, line, nonce})                                ~2 Hz while playing
+   *   emptyHtml                                                         empty-state message
+   */
+  class KaraokePlayer {
+    constructor(el, hooks) {
+      this.el = el;
+      this.hooks = hooks || {};
+      el.classList.add("rs-k");
+      el.innerHTML = "";
+      if (!el.hasAttribute("tabindex")) el.tabIndex = 0;
+      this.opts = Object.assign({}, DEFAULTS);
+      this.song = null;
+      this.deck = new AudioDeck({ status: (t, l) => this.status(t, l, "audio"), changed: () => this._audioChanged() });
+      this.clock = this.deck.clock;
+      this.clock.onStateChange = (_c, err) => { this._sync(); if (err) this.status(`Playback blocked: ${err.message || err}`, "error"); };
+      this.clock.onEnded = () => {                       // played to the end (the app's play queue moves on)
+        this._sync();
+        this._plug("ended");
+        if (this.hooks.onEnded) this.hooks.onEnded({ songKey: this.song && this.song.songKey, nonce: Date.now() });
+      };
+      this._lat = 0; this._latReported = -1; this.frameLead = 1 / 60;
+      this.offset = 0; this._rateSetting = 1;
+
+      this.backdrop = h("div", "rs-k-backdrop", el);
+      this.viewport = h("div", "rs-k-viewport", el);
+      this.track = h("div", "rs-k-track", this.viewport);
+      this.cue = h("div", "rs-k-cue", el);
+      this.cueText = h("span", "rs-k-cue-text", this.cue);
+      this.cueDots = h("span", "rs-k-cue-dots", this.cue);
+      for (let i = 0; i < COUNT_IN; i++) h("i", null, this.cueDots);
+      const card = (this.card = h("div", "rs-k-card", el));
+      this.art = h("div", "rs-k-art is-empty", card);
+      const meta = h("div", "rs-k-card-meta", card);
+      this.title = h("div", "rs-k-card-title", meta);
+      this.sub = h("div", "rs-k-card-sub", meta);
+      this.pill = h("div", "rs-k-pill", el);
+      this.empty = h("div", "rs-k-empty", el);
+      this.empty.innerHTML = `<div class="rs-k-empty-icon">${ICON.mic}</div><div>${this.hooks.emptyHtml ||
+        "<b>No song loaded</b><br><span>Pick a song with lyrics, or drop a Rocksmith <code>.psarc</code> that has a vocals track.</span>"}</div>`;
+      this.banner = h("div", "rs-k-banner", el);
+      this._buildTransport();
+      // plugins (karaoke-voice.js: the original voice; karaoke-sing.js: microphone scoring), when loaded
+      this.plugins = {};
+      for (const pl of K.plugins || []) { try { this.plugins[pl.name] = pl.create(this); } catch (e) { /* a plugin failed: the player still works */ } }
+      this.voice = this.plugins.voice || null;
+      this.sing = this.plugins.sing || null;
+      if (this.voice) this.deck.wantGraph = true;
+
+      this._ro = new ResizeObserver(() => this._resize());
+      this._ro.observe(el);
+      this._onKey = (e) => this._key(e);
+      document.addEventListener("keydown", this._onKey);
+      this.track.addEventListener("click", (e) => {
+        const line = e.target.closest && e.target.closest(".rs-k-line");
+        if (line && this.song) this.seekLine(+line.dataset.i);
+      });
+      this._loop = this._loop.bind(this);
+      this._raf = 0;
+      this.applyOptions({});
+      this._sync();
+    }
+
+    // ---- data ------------------------------------------------------------------------
+    /** data: {song: payload (JSON string or object), options} -- or the payload itself. */
+    load(data) {
+      if (!data) { this.clear(); return; }
+      let payload = data.song !== undefined ? data.song : data;
+      if (!payload) { this.clear(); return; }
+      if (typeof payload === "string") payload = JSON.parse(payload);
+      this._payload = payload;
+      this._syncState = null;
+      const S = K.prepare(payload);
+      const same = S.songKey && this.song && S.songKey === this.song.songKey;
+      if (!same) this.deck.reset(S.songKey, S.duration);
+      else this.clock.duration = Math.max(this.clock.duration, S.duration);
+      this.song = S;
+      this._buildLines();
+      this._setMeta();
+      if (data.options) this.applyOptions(data.options);
+      this.el.classList.add("has-song");
+      this._buildStrip();
+      this._state = null; this._sec = undefined; this._cueOn = undefined; this._cueTxt = undefined; this._cueDots = undefined;
+      this._jumpTo = null;
+      this._layout(true);
+      this._sync();
+      this._start();
+      this._plug("load", S);
+      if (this.hooks.onReady) this.hooks.onReady({ songKey: S.songKey, audio: this.deck.kind || "none",
+        hasAudio: this.deck.kind === "full", formats: K.playableFormats(), nonce: Date.now() });
+      this._lyricsNotice();
+      if (!S.lines.length && payload.lyrics && payload.lyrics.lookup && !payload.lyrics.lrc) this._lookup();
+      else this._autoSync();
+    }
+
+    /** Rebuild the song model from the (changed) payload, keeping audio and position. */
+    _reprepare() {
+      const S = K.prepare(this._payload);
+      this.song = S;
+      this.clock.duration = Math.max(this.clock.duration, S.duration);
+      this._buildLines(); this._buildStrip();
+      this._state = null; this._sec = undefined; this._cueOn = undefined;
+      this._layout(true); this._sync();
+    }
+
+    _lyricsNotice() {
+      const L = this.song && this.song.lyrics;
+      this.el.classList.toggle("is-unsynced", !!(L && L.plain));
+      const est = !!(this.song && this.song.estimated);
+      this.el.classList.toggle("is-estimated", est);
+      if (this.estBadge) this.estBadge.style.display = est ? "" : "none";
+      if (L && L.plain) this.status("These lyrics have no timing: they are shown as a sheet to scroll.", "info");
+    }
+
+    /** No lyrics yet, only who to ask: look them up on LRCLIB from the browser. */
+    async _lookup() {
+      const p = this._payload, key = p.songKey;
+      this.status("Looking up the lyrics online (LRCLIB)\u2026", "info");
+      const hit = K.lookupLRCLIB ? await K.lookupLRCLIB(p.lyrics.lookup) : null;
+      if (!this.song || this.song.songKey !== key) return;
+      if (!hit || hit.offline) {
+        this.status(hit && hit.offline ? "Could not reach the lyrics service (LRCLIB) \u2014 offline? Load a .lrc file to sing along."
+                                       : "No lyrics found online for this song. Load a .lrc file (\u201cLyrics\u2026\u201d) to sing along.", "error");
+        return;
+      }
+      Object.assign(p.lyrics, hit);
+      this._reprepare();
+      this._lyricsNotice();
+      if (this.hooks.onLyrics) this.hooks.onLyrics({ songKey: key, lyrics: hit, nonce: Date.now() });
+      this._autoSync();
+    }
+
+    /** Lyrics from an LRC: align them to this recording once its full audio is in. */
+    async _autoSync() {
+      const p = this._payload, L = p && p.lyrics, S = this.song;
+      if (!L || !L.lrc || L.align === false || L.offsetMs != null || !S || !S.lines.length || S.lyrics.plain) return;
+      if (this.deck.kind !== "full" || this._syncState) return;          // retried when the full audio arrives
+      const key = S.songKey, audio = this.deck.audio;
+      this._syncState = "running";
+      this.status("Syncing the lyrics to this recording\u2026", "info");
+      let res = null, err = null;
+      try {
+        const ab = audio ? await this.decodeAudio(8000) : null;
+        if (!ab) throw new Error("the audio could not be decoded for syncing");
+        if (!this.song || this.song.songKey !== key) return;
+        res = await K.alignLRC(ab, S.lines, { audioDuration: ab.duration, lrcDuration: L.lrcDuration });
+      } catch (e) { err = e; }
+      if (!this.song || this.song.songKey !== key) return;
+      this._syncState = "done";
+      if (!res) {
+        this.status(`Could not sync the lyrics automatically (${err && err.message || err}); use Lyrics timing to adjust.`, "error");
+        return;
+      }
+      L.offsetMs = Math.round(1000 * res.offset);
+      L.confidence = res.confidence;
+      this._reprepare();
+      const s = res.offset;
+      this.status(res.moved ? `Lyrics synced to this recording (${s > 0 ? "+" : ""}${s.toFixed(2)} s).`
+                            : "Lyrics checked against this recording: they already fit.", "info");
+      setTimeout(() => { if (this.song && this.song.songKey === key && /^Lyrics (synced|checked)/.test(this.banner.textContent)) this.status("", "clear"); }, 5000);
+      if (this.hooks.onAligned) this.hooks.onAligned({ songKey: key, offsetMs: L.offsetMs, confidence: res.confidence, moved: res.moved, nonce: Date.now() });
+    }
+
+    clear() {
+      this.deck.reset(null, 0);
+      this.song = null;
+      this.track.innerHTML = ""; this.lineEls = []; this.secEls = []; this.sylEls = [];
+      this._jumpTo = null; this._payload = null; this._syncState = null;
+      this.el.classList.remove("has-song", "is-unsynced", "is-estimated");
+      if (this.estBadge) this.estBadge.style.display = "none";
+      this.backdrop.style.backgroundImage = ""; this.art.style.backgroundImage = "";
+      this.art.classList.add("is-empty");
+      this.cue.classList.remove("is-on"); this.pill.classList.remove("is-on");
+      this._stop();
+      this._sync();
+      this._plug("load", null);
+    }
+
+    setAudio(url, songKey, kind, seconds) {
+      if (songKey && this.song && songKey !== this.song.songKey) return Promise.resolve(false);
+      return this.deck.set(url, songKey || (this.song && this.song.songKey), kind, seconds);
+    }
+
+    _setMeta() {
+      const m = this.song.meta || {};
+      this.title.textContent = m.title || "Untitled";
+      this.sub.textContent = [m.artist, m.album && m.album !== m.title ? m.album : null, m.year].filter(Boolean).join("  \u00b7  ");
+      let url = null;
+      if (this.song.art && HW.ddsToDataURL) { try { url = HW.ddsToDataURL(this.song.art); } catch (e) { url = null; } }
+      this.art.style.backgroundImage = url ? `url(${url})` : "";
+      this.art.classList.toggle("is-empty", !url);
+      this.backdrop.style.backgroundImage = url ? `url(${url})` : "";
+    }
+
+    _buildLines() {
+      const S = this.song;
+      this.track.innerHTML = "";
+      this.lineEls = []; this.secEls = []; this.sylEls = [];
+      if (S.lyrics && S.lyrics.plain) {                         // unsynced lyrics
+        for (const text of S.lyrics.plain) h("div", "rs-k-line is-next", this.track, text);
+        return;
+      }
+      S.lines.forEach((L, k) => {
+        if (S.cues[k]) { const c = h("div", "rs-k-sec", this.track, S.cues[k]); this.secEls.push(c); }
+        const el = h("div", "rs-k-line is-future", this.track);
+        el.dataset.i = k;
+        el.title = `${fmt(L.start)}  \u00b7  click to sing from here`;
+        const spans = [];
+        for (const W of L.words) {
+          spans.push(h("span", "rs-k-syl", el, W.w));
+          if (!W.j) el.appendChild(document.createTextNode(" "));
+        }
+        this.lineEls.push(el); this.sylEls.push(spans);
+      });
+    }
+
+    // ---- options -----------------------------------------------------------------------
+    applyOptions(o) {
+      if (!o) return;
+      const O = this.opts;
+      for (const k of Object.keys(DEFAULTS)) if (o[k] !== undefined && o[k] !== null) O[k] = o[k];
+      this.el.classList.toggle("is-sheet", O.view === "sheet");
+      this.el.classList.toggle("no-sections", !O.sectionLabels);
+      this.el.classList.toggle("no-backdrop", !O.backdrop);
+      this.el.style.setProperty("--rs-k-scale", String(clamp(+O.textScale || 1, 0.4, 3)));
+      this.offset = (+O.offsetMs || 0) / 1000;
+      this.deck.autoLatency = !!O.autoLatency;
+      // apply the speed only when the *setting* changes
+      if (+O.playbackRate > 0 && +O.playbackRate !== this._rateSetting) {
+        this._rateSetting = +O.playbackRate;
+        this.clock.setRate(this._rateSetting);
+      }
+      this._layout(true);
+      this._sync();
+    }
+    /** Shiny-style alias */
+    settings(o) { this.applyOptions(o); }
+
+    // ---- transport ---------------------------------------------------------------------
+    _buildTransport() {
+      const bar = (this.transport = h("div", "rs-k-transport", this.el));
+      const btn = (cls, svg, title, fn) => {
+        const b = h("button", "rs-k-btn" + (cls ? " " + cls : ""), bar);
+        b.type = "button"; b.innerHTML = svg; b.title = title; b.setAttribute("aria-label", title);
+        b.addEventListener("click", (e) => { fn(); e.currentTarget.blur(); });
+        return b;
+      };
+      this.btnPlay = btn("rs-k-btn-play", ICON.play, "Play / pause (Space)", () => this.togglePlay());
+      btn("", ICON.restart, "Back to the start (Home)", () => this.seek(0));
+      btn("", ICON.prev, "Previous line (\u2191)", () => this.stepLine(-1));
+      btn("", ICON.next, "Next line (\u2193)", () => this.stepLine(1));
+      this.time = h("span", "rs-k-time", bar);
+      this.strip = h("div", "rs-k-strip", bar);
+      this.segs = h("div", "rs-k-segs", this.strip);
+      this.future = h("div", "rs-k-future", this.strip);
+      this.head = h("div", "rs-k-head", this.strip);
+      this.hover = h("div", "rs-k-hovertip", this.strip);
+      this.rateBadge = h("span", "rs-k-badge", bar);
+      this.estBadge = h("span", "rs-k-badge rs-k-badge-est", bar, "\u2248 syllables");
+      this.estBadge.title = "These lyrics are timed per line: the syllable highlight is estimated, not measured.";
+      this.estBadge.style.display = "none";
+      const at = (e) => { const r = this.strip.getBoundingClientRect(); return clamp((e.clientX - r.left) / r.width, 0, 1) * (this.clock.duration || 0); };
+      this.strip.addEventListener("pointerdown", (e) => {
+        if (!this.song) return;
+        this.strip.setPointerCapture(e.pointerId);
+        this.seek(at(e));
+        const move = (ev) => this.seek(at(ev));
+        const up = () => { this.strip.removeEventListener("pointermove", move); this.strip.removeEventListener("pointerup", up); };
+        this.strip.addEventListener("pointermove", move);
+        this.strip.addEventListener("pointerup", up);
+      });
+      this.strip.addEventListener("mousemove", (e) => {
+        if (!this.song) return;
+        const t = at(e), s = this.song.sections, r = this.strip.getBoundingClientRect();
+        const i = upperBound(s.t, t + 1e-6) - 1;
+        this.hover.textContent = (i >= 0 ? s.label[i] + "  \u00b7  " : "") + fmt(t);
+        this.hover.style.left = clamp(e.clientX - r.left, 0, r.width) + "px";
+      });
+    }
+
+    /** Timeline: sections as segments, sung lines as bars. */
+    _buildStrip() {
+      this.segs.innerHTML = "";
+      const S = this.song, d = this.clock.duration || S.duration || 1;
+      this._stripDur = d;
+      const s = S.sections;
+      for (let i = 0; i < s.n; i++) {
+        const t0 = s.t[i], t1 = i + 1 < s.n ? s.t[i + 1] : d;
+        const seg = h("div", "rs-k-seg" + (i % 2 ? " is-odd" : ""), this.segs);
+        seg.style.left = (100 * t0 / d) + "%"; seg.style.width = Math.max(0, 100 * (t1 - t0) / d) + "%";
+      }
+      for (const L of S.lines) {
+        const b = h("div", "rs-k-sung", this.segs);
+        b.style.left = (100 * L.start / d) + "%"; b.style.width = Math.max(0.15, 100 * (L.end - L.start) / d) + "%";
+      }
+    }
+
+    _sync(t) {
+      if (t == null) t = this.clock.time(performance.now());
+      const playing = this.clock.playing;
+      if (playing !== this._shownPlaying) {
+        this._shownPlaying = playing;
+        this.btnPlay.innerHTML = playing ? ICON.pause : ICON.play;
+        this.btnPlay.classList.toggle("is-playing", playing);
+      }
+      const d = this.clock.duration || 0;
+      this.time.textContent = `${fmt(t)} / ${fmt(d)}`;
+      const u = d ? clamp(t / d, 0, 1) : 0;
+      this.head.style.left = (100 * u) + "%";
+      this.future.style.left = (100 * u) + "%";
+      this.transport.classList.toggle("is-silent", !this.deck.audio);
+      const r = this.clock.rate;
+      this.rateBadge.textContent = r !== 1 ? `${Math.round(r * 100)}%` : "";
+      this.rateBadge.style.display = r !== 1 ? "" : "none";
+      if (this.song && d && Math.abs(d - (this._stripDur || 0)) > 0.5) this._buildStrip();
+    }
+
+    _audioChanged() {
+      if (this.song) this._buildStrip();
+      this._sync();
+      this._autoSync();
+    }
+
+    async togglePlay() {
+      if (!this.song) return;
+      const c = this.clock, deck = this.deck;
+      if (!c.playing && deck.autoLatency && !deck.out.ctx && !deck.out.failed) {
+        await deck.out.ensure();                     // user gesture: create + resume the graph
+        if (!c.playing && this._visible === false) return;   // hidden meanwhile (the app switched modes)
+      }
+      if (!c.playing) deck.joinGraph();             // about to start: nothing else is playing
+      const t = c.time(performance.now());
+      if (!c.playing && deck.kind === "head" && t >= deck.headLimit) {
+        c.playHeld(t);
+        this.status("Loading the rest of the audio\u2026", "info");
+        return;
+      }
+      if (!c.playing && c.duration > 0 && t >= c.duration - 0.05) this.seek(0);
+      const was = c.playing;
+      c.toggle();
+      if (!was && c.playing) this._plug("playing");
+      if (was) deck.joinGraph();                    // just paused: safe moment to join
+      this._sync();
+    }
+    play() { if (!this.clock.playing) return this.togglePlay(); }
+    pause() { if (this.clock.playing) { this.clock.pause(); this.deck.joinGraph(); this._sync(); } }
+
+    seek(t) {
+      if (!this.song) return;
+      t = Math.max(0, t);
+      this._jumpTo = null;
+      this.deck.joinGraph();
+      if (this.deck.kind === "head" && t >= this.deck.headLimit) {
+        this.clock.hold(t);
+        this.status("Loading the rest of the audio\u2026", "info");
+      } else {
+        this.clock.seek(t);
+        if (this.deck.kind !== "head" || !this.clock.holding) this.status("", "clear");
+      }
+      this._jump = true;                            // no scroll animation after a jump
+      this._sync();
+      this._drawOnce();
+      this._plug("seeked", t - this.offset - this._lat);
+    }
+    /** Jump to a line with a 1.5 s run-up (in song time, i.e. as heard). */
+    seekLine(k) {
+      if (!this.song) return;
+      k = clamp(k | 0, 0, this.song.lines.length - 1);
+      this.seek(this.song.lines[k].start - 1.5 + this.offset + this._lat);
+      this._jumpTo = k;                               // (after seek(), which forgets it)
+    }
+    /** Previous / next line (up / down). Relative to the line being sung -- or, during
+     *  the run-up after a jump, to the line jumped to (the previous line is still
+     *  shown then). "Previous" first restarts the current line once it is under way. */
+    stepLine(dir) {
+      if (!this.song) return;
+      const L = this.song.lines, t = this.lyricTime(performance.now());
+      let cur = -1;
+      while (cur + 1 < L.length && L[cur + 1].start <= t + 1e-6) cur++;
+      const pending = this._jumpTo != null && this._jumpTo < L.length && t < L[this._jumpTo].start ? this._jumpTo : null;
+      let k;
+      if (dir > 0) k = (pending != null ? pending : cur) + 1;
+      else k = pending != null ? pending - 1 : cur >= 0 && t - L[cur].start > 1 ? cur : cur - 1;
+      this.seekLine(clamp(k, 0, L.length - 1));
+    }
+
+    /** Replace the lyrics of the current song with an LRC ({lrc, source, songKey?}); it is synced to the audio. */
+    setLyrics(a) {
+      if (!this._payload || !a || !a.lrc || (a.songKey && a.songKey !== this._payload.songKey)) return false;
+      this._payload.vocals = { t: [], d: [], w: [], j: [], l: [] };
+      this._payload.lyrics = { source: a.source || "file", lrc: a.lrc, lrcDuration: a.lrcDuration || null, align: a.align !== false };
+      this._syncState = null;
+      this._reprepare();
+      this._lyricsNotice();
+      this._autoSync();
+      return true;
+    }
+
+    /** Lyric time (as heard) of a performance.now() timestamp. */
+    lyricTime(perfMs) { return this.clock.time(perfMs) - this.offset - this._lat; }
+
+    /** Banner. `owner` ("audio" for the audio loader) may clear only its own messages,
+     *  so audio finishing to load does not wipe e.g. a lyrics message. */
+    status(text, level, owner) {
+      owner = owner || "player";
+      if ((!text || level === "clear") && this._bannerOwner && owner !== this._bannerOwner && owner === "audio") return;
+      this._bannerOwner = text && level !== "clear" ? owner : null;
+      this.banner.textContent = text || "";
+      this.banner.className = "rs-k-banner" + (text && level !== "clear" ? " is-" + level : "");
+    }
+
+    command(msg) {
+      const a = msg.args || {};
+      switch (msg.cmd) {
+        case "audio": this.setAudio(a.url, a.songKey, a.kind, a.seconds); break;
+        case "play": this.play(); break;
+        case "pause": this.pause(); break;
+        case "seek": this.seek(+a.time || 0); break;
+        case "settings": this.applyOptions(a.settings); break;
+        case "status": this.status(a.text, a.level); break;
+        case "lyrics": this.setLyrics(a); break;
+        case "voice": if (this.voice) this.voice.set(a, "host"); break;                        // {volume, mute}
+        case "sing": if (this.sing) { if (a.on) this.sing.start(); else this.sing.stop(); } break;
+        case "score_ack": if (this.sing) this.sing.ack(a); break;                      // {newBest, best, previous}
+        default: console.warn("rs-karaoke: unknown command", msg.cmd);
+      }
+    }
+
+    // ---- view ----------------------------------------------------------------------------
+    /** Re-measure line positions (after load, resize, text size / view change). */
+    _layout(jump) {
+      if (!this.song || !this.lineEls || !this.lineEls.length) return;
+      this._vpH = this.viewport.clientHeight;
+      this._pos = this.lineEls.map((e) => e.offsetTop + e.offsetHeight / 2);
+      // top of each line's block: its section label when it has one (and labels are shown)
+      this._top = this.lineEls.map((e) => {
+        const sec = e.previousElementSibling;
+        return sec && sec.classList.contains("rs-k-sec") && sec.offsetHeight ? sec.offsetTop : e.offsetTop;
+      });
+      this._scrolledTo = null;
+      if (jump) this._jump = true;
+      this._drawOnce();
+    }
+
+    _anchor() { return this._vpH * (this.opts.view === "sheet" ? 0.34 : 0.44); }
+
+    _scrollTo(k) {
+      if (!this._pos || k < 0 || k >= this._pos.length) return;
+      const y = Math.round(this._anchor() - this._pos[k]);
+      if (y === this._scrolledTo) return;
+      this._scrolledTo = y;
+      this.track.classList.toggle("no-anim", !!this._jump);
+      this.track.style.transform = `translate3d(0, ${y}px, 0)`;
+      if (this._jump) { void this.track.offsetHeight; this.track.classList.remove("no-anim"); }
+      this._jump = false;
+      // the cue (intro / break countdown) sits just above the focus line and its section label
+      this.cue.style.top = Math.max(8, this.viewport.offsetTop + this._anchor() - this._pos[k] + this._top[k] - 8) + "px";
+    }
+
+    /** Draw the lyrics for lyric time t (only touches the DOM when something changed). */
+    render(t) {
+      const S = this.song;
+      if (!S || !this.lineEls) return;
+      if (S.lyrics && S.lyrics.plain) return;                   // unsynced lyrics: a sheet to scroll by hand
+      const st = K.state(S, t), prev = this._state;
+      this._state = st;
+      const lineChanged = !prev || prev.focus !== st.focus || prev.mode !== st.mode;
+      if (lineChanged) {
+        const cur = st.mode === "sing" || st.mode === "outro";
+        for (let k = 0; k < this.lineEls.length; k++) {
+          const cls = k < st.focus ? "is-past" : k > st.focus ? "is-future" : cur ? "is-current" : "is-next";
+          const e = this.lineEls[k];
+          if (e._cls !== cls) { e.className = "rs-k-line " + cls; e._cls = cls; }
+        }
+        if (prev && prev.focus >= 0 && prev.focus !== st.focus) this._paintWords(prev.focus, -1, 0, true);
+      }
+      this._scrollTo(st.focus);
+      if (st.mode === "sing" || st.mode === "outro") this._paintWords(st.focus, st.word, st.p, lineChanged || !prev || prev.word !== st.word);
+      // intro / break cue: "Intro . 0:12" or "Instrumental . 0:08", count-in dots in the last seconds
+      const waiting = st.mode === "intro" || st.mode === "break";
+      if (waiting) {
+        const left = st.until - t;
+        const dots = this.opts.countIn && left <= COUNT_IN ? Math.ceil(left) : 0;
+        const txt = left > COUNT_IN || !this.opts.countIn ? `${st.mode === "intro" ? "Intro" : "Instrumental"}  \u00b7  ${fmt(Math.ceil(left))}` : "";
+        if (txt !== this._cueTxt) { this.cueText.textContent = txt; this._cueTxt = txt; }
+        if (dots !== this._cueDots) {
+          this._cueDots = dots;
+          const ds = this.cueDots.children;
+          for (let i = 0; i < ds.length; i++) ds[i].className = i < dots ? "is-on" : "";
+          this.cue.classList.toggle("is-counting", dots > 0);
+        }
+      }
+      if (waiting !== this._cueOn) { this._cueOn = waiting; this.cue.classList.toggle("is-on", waiting); }
+      // section pill
+      const si = upperBound(S.sections.t, t + 1e-6) - 1;
+      if (si !== this._sec) {
+        this._sec = si;
+        this.pill.textContent = si >= 0 ? S.sections.label[si] : "";
+        this.pill.classList.toggle("is-on", si >= 0);
+      }
+    }
+
+    /** Syllable classes of line k: before `word` sung, `word` wiping (p), after unsung. */
+    _paintWords(k, word, p, full) {
+      const spans = this.sylEls[k];
+      if (!spans) return;
+      if (full) {
+        for (let i = 0; i < spans.length; i++) {
+          const cls = i < word ? "rs-k-syl is-sung" : i === word ? "rs-k-syl is-now" : "rs-k-syl";
+          if (spans[i].className !== cls) spans[i].className = cls;
+          if (i !== word && spans[i]._p != null) { spans[i].style.removeProperty("--p"); spans[i]._p = null; }
+        }
+      }
+      if (word >= 0 && word < spans.length) {
+        const q = Math.round(p * 200) / 200;
+        const sp = spans[word];
+        if (sp._p !== q) { sp._p = q; sp.style.setProperty("--p", String(q)); }
+      }
+    }
+
+    // ---- loop ----------------------------------------------------------------------------
+    _start() { if (!this._raf) { this._lastFrame = 0; this._raf = requestAnimationFrame(this._loop); } }
+    _stop() { if (this._raf) cancelAnimationFrame(this._raf); this._raf = 0; }
+
+    /** Call a method on every plugin that has it. */
+    _plug(name, ...args) {
+      for (const k in this.plugins || {}) { const x = this.plugins[k]; if (x && typeof x[name] === "function") { try { x[name](...args); } catch (e) { /* keep playing */ } } }
+    }
+
+    /** The song's audio decoded at `sr` Hz (stereo AudioBuffer; cached per song), or null. */
+    async decodeAudio(sr) {
+      const audio = this.deck.audio, key = this.song && this.song.songKey;
+      if (!audio || this.deck.kind !== "full") return null;
+      const ck = key + "@" + sr;
+      if (this._decoded && this._decoded.key === ck) return this._decoded.buf;
+      if (audio._direct) throw new Error("a page opened from disk cannot read the audio files next to it (open it through a web server, or export it with the audio embedded)");
+      const src = audio._url || audio.currentSrc || audio.src;
+      const data = await (await fetch(src)).arrayBuffer();
+      let ab = null;
+      for (const rate of [sr, 16000, 22050, 44100]) {
+        try {
+          const OAC = root.OfflineAudioContext || root.webkitOfflineAudioContext;
+          ab = await new OAC(2, rate, rate).decodeAudioData(data.slice(0)); break;
+        } catch (e) { ab = null; }
+      }
+      if (ab && this.song && this.song.songKey === key) this._decoded = { key: ck, buf: ab };
+      return ab;
+    }
+
+    _loop(ts) {
+      this._raf = 0;
+      if (!this.el.isConnected) { this.destroy(); return; }
+      const dt = this._lastFrame ? (ts - this._lastFrame) / 1000 : 0;
+      this._lastFrame = ts;
+      if (dt > 0 && dt < 0.1) this.frameLead = this.frameLead * 0.9 + dt * 0.1;
+      this.clock.tick(ts);
+      const t = this.clock.time(ts + this.frameLead * 1000);      // when this frame is on screen
+      const deck = this.deck;
+      if (deck.kind === "head" && this.clock.playing && !this.clock.holding && t >= deck.headLimit) {
+        this.clock.hold(t);
+        this.status("Loading the rest of the audio\u2026", "info");
+      }
+      // output latency, ramped at 0.1 s/s so the highlight never jumps
+      const target = deck.latency(ts);
+      this._lat += clamp(target - this._lat, -0.1 * dt, 0.1 * dt) || 0;
+      if (dt <= 0 || dt > 0.5 || Math.abs(this._lat - target) < 1e-4) this._lat = target;
+      if (Math.abs(target - this._latReported) > 0.002 && this._lat === target) {
+        this._latReported = target;
+        if (this.hooks.onLatency) this.hooks.onLatency({ outputMs: Math.round(1000 * deck.out.latency(ts + 2000)),
+          routed: !!(deck.audio && deck.audio._gain), auto: deck.autoLatency, nonce: Date.now() });
+      }
+      if (this.voice) this._plug("frame_voice", t - this.offset);   // the audio being processed (before the output delay)
+      if (this._visible !== false) {
+        this.render(t - this.offset - this._lat);
+        this._plug("frame", t - this.offset - this._lat);
+        if (ts - (this._lastUi || 0) > 100) { this._lastUi = ts; this._sync(t); }
+      }
+      if (this.hooks.onState && this.clock.playing && ts - (this._lastState || 0) > 500) {
+        this._lastState = ts;
+        this.hooks.onState({ t: +t.toFixed(3), playing: true, line: this._state ? this._state.focus : -1, nonce: Date.now() });
+      }
+      this._raf = requestAnimationFrame(this._loop);
+    }
+
+    _drawOnce() {
+      if (!this.song || this._raf) return;           // the loop will pick it up
+      this.render(this.lyricTime(performance.now()));
+    }
+
+    _resize() {
+      const r = this.el.getBoundingClientRect();
+      this._visible = r.width > 0 && r.height > 0;
+      if (!this._visible && this.clock.playing) this.pause();   // a hidden player never plays
+      this.el.classList.toggle("is-compact", r.width < 720);
+      if (this._visible) this._layout(true);
+    }
+
+    _key(e) {
+      if (!this.song || !this.el.isConnected || !this._visible || !this.el.getClientRects().length) return;
+      const tag = (e.target && e.target.tagName) || "";
+      if (/INPUT|SELECT|TEXTAREA|BUTTON/.test(tag) || (e.target && e.target.isContentEditable)) return;
+      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      const t = this.clock.time(performance.now());
+      switch (e.code) {
+        case "Space": this.togglePlay(); break;
+        case "ArrowLeft": this.seek(t - 5); break;
+        case "ArrowRight": this.seek(t + 5); break;
+        case "ArrowUp": this.stepLine(-1); break;
+        case "ArrowDown": this.stepLine(1); break;
+        case "Home": this.seek(0); break;
+        default: return;
+      }
+      e.preventDefault();
+    }
+
+    destroy() {
+      this._plug("destroy");
+      this._stop();
+      this.deck.unload();
+      this._ro.disconnect();
+      document.removeEventListener("keydown", this._onKey);
+      if (this.hooks.onDestroy) this.hooks.onDestroy(this);
+    }
+  }
+  K.KaraokePlayer = KaraokePlayer;
+})(window);
+</script>
+<script>
+/* ---------------------------------------------------------------------------
+ * karaoke-sync.js -- lyrics that are not in the .psarc: LRC files (a sidecar
+ * .lrc, or synced lyrics from LRCLIB), timed for *a* recording of the song,
+ * aligned automatically to *this* recording.
+ *
+ *   RSKaraoke.parseLRC(text)          -> {lines: [{t, text, words?}], meta, offsetMs, synced}
+ *   RSKaraoke.vocalsFromLRC(parsed)   -> karaoke vocals columns {t, d, w, j, l}, one per syllable
+ *   RSKaraoke.syllabify(word)         -> ["e", "ve", "ry", "thing"]
+ *   RSKaraoke.timeLine(words, t, next) -> syllable times of a line timed only by its start
+ *   RSKaraoke.alignLRC(buf, lines, o) -> {offset, confidence, moved} (seconds)
+ *   RSKaraoke.lookupLRCLIB(q)         -> LRC text from lrclib.net (browser fallback)
+ *
+ * Alignment (measured on songs with studio-timed syllables, LRC-like line jitter
+ * of 150 ms, see docs): the song's centre channel is split into harmonic and
+ * percussive parts (median filtering of the spectrogram), so drums do not count;
+ * the rise of harmonic energy in the vocal band (250-3000 Hz) marks sung onsets.
+ * Word onsets estimated from the LRC lines are slid over it (+-2 s around two
+ * priors: no offset, and the difference of the track lengths); a shift is taken
+ * only when it scores 8 % better than staying put, so lyrics that already fit
+ * the recording stay where they are (and never with fewer than 8 lines).
+ *
+ * Syllables: LRC lyrics are timed per line (LRCLIB), sometimes per word
+ * ("enhanced" LRC, <mm:ss.xx> tags). Words are split into syllables (English
+ * heuristic) and highlighted one by one: word-timed lyrics at their own times,
+ * line-timed ones by a timing model fitted to the sample songs' studio-timed
+ * syllables (0.28 s per syllable, longer syllables a little longer, a breath
+ * between words, never into the next line). Measured against those charts with
+ * exact line times: median word-onset error 175 ms (44 % within 150 ms), the
+ * sung word or its neighbour lit 81 % of the time -- an estimate, flagged in the player
+ * ("\u2248 syllables"). Detecting syllable onsets in the mixed recording was
+ * tried (spectral flux, harmonic/percussive split, centre-channel masks,
+ * dynamic programming over onsets): no better than the model, so not used.
+ * ------------------------------------------------------------------------- */
+(function (root) {
+  "use strict";
+  const K = (root.RSKaraoke = root.RSKaraoke || {});
+
+  // ---- LRC ----------------------------------------------------------------------------
+  const TAG = /\[(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)\]/g;
+  const WORD = /<(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)>/g;
+  const secs = (m, s) => +m * 60 + +String(s).replace(":", ".");
+
+  K.parseLRC = function (text) {
+    const out = { lines: [], meta: {}, offsetMs: 0, synced: "none" };
+    const raw = String(text || "").replace(/^\ufeff/, "").split(/\r?\n/);
+    const timed = [], plain = [];
+    for (const line of raw) {
+      const meta = /^\s*\[([a-z#]+):(.*)\]\s*$/i.exec(line);
+      if (meta && !/^\d/.test(meta[1])) {
+        const k = meta[1].toLowerCase(), v = meta[2].trim();
+        if (k === "offset") out.offsetMs = +v || 0; else out.meta[k] = v;
+        continue;
+      }
+      const tags = [];
+      let m, last = 0;
+      TAG.lastIndex = 0;
+      while ((m = TAG.exec(line)) && m.index === last) { tags.push(secs(m[1], m[2])); last = TAG.lastIndex; }
+      const rest = line.slice(last);
+      if (!tags.length) { if (rest.trim()) plain.push(rest.trim()); continue; }
+      // enhanced LRC: <mm:ss.xx> before words
+      let words = null;
+      if (WORD.test(rest)) {
+        words = [];
+        const parts = rest.split(/(<\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?>)/);
+        let t = null;
+        for (const p of parts) {
+          const w = /^<(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)>$/.exec(p);
+          if (w) { t = secs(w[1], w[2]); continue; }
+          for (const word of p.split(/\s+/).filter(Boolean)) { words.push({ t, w: word }); t = null; }
+        }
+      }
+      WORD.lastIndex = 0;
+      const txt = rest.replace(WORD, "").replace(/\s+/g, " ").trim();
+      // word times relative to the line's first timestamp, so a repeated line gets its own
+      const rel = words && words.length ? words.map((W) => ({ w: W.w, dt: W.t == null ? null : W.t - tags[0] })) : null;
+      for (const t of tags) {
+        timed.push({ t, text: txt, words: rel ? rel.map((W) => ({ w: W.w, t: W.dt == null ? null : t + W.dt })) : null });
+      }
+    }
+    timed.sort((a, b) => a.t - b.t);
+    const shift = out.offsetMs / 1000;                         // [offset:+ms] shows the lyrics sooner
+    for (const L of timed) { L.t -= shift; if (L.words) for (const W of L.words) if (W.t != null) W.t -= shift; }
+    if (timed.length) {
+      out.lines = timed;
+      out.synced = timed.some((L) => L.words && L.words.some((W) => W.t != null)) ? "word" : "line";
+    } else {
+      out.lines = plain.map((text) => ({ t: null, text }));
+      out.synced = plain.length ? "none" : "empty";
+    }
+    return out;
+  };
+
+  // ---- syllables ----------------------------------------------------------------------------
+  // English heuristic (vowel groups; silent final e / -es / -ed; V-CV, VC-CV, onset clusters
+  // stay together; ta|ble; go|ing). Display and timing only -- it does not need to be perfect.
+  const ONSET = new Set(["bl", "br", "cl", "cr", "dr", "fl", "fr", "gl", "gr", "pl", "pr", "sc", "sk", "sl", "sm", "sn",
+    "sp", "st", "sw", "tr", "tw", "wr", "ch", "sh", "th", "ph", "wh", "qu"]);
+  function syllabifyPart(s) {
+    const low = s.toLowerCase(), n = low.length;
+    const vow = (c) => /[aeiou]/.test(c || "");
+    const isV = (i) => {
+      const c = low[i];
+      if (c === "y") return i > 0 && /[a-z]/.test(low[i - 1]) && !vow(low[i - 1]);
+      return vow(c);
+    };
+    const groups = [];                                            // vowel groups [from, to)
+    for (let i = 0; i < n;) {
+      if (isV(i)) { let j = i + 1; while (j < n && vow(low[j])) j++; groups.push([i, j]); i = j; } else i++;
+    }
+    for (let k = 0; k < groups.length; k++) {                    // go|ing, see|ing, cry|ing
+      const [a, b] = groups[k];
+      if (b - a >= 2 && low[b - 1] === "i" && low.slice(b, b + 2) === "ng") { groups.splice(k, 1, [a, b - 1], [b - 1, b]); k++; }
+    }
+    for (let k = 0; k + 1 < groups.length; k++) {                // play|ing: the y stays in front
+      const [a, b] = groups[k];
+      if (low[b] === "y" && groups[k + 1][0] === b + 1) groups[k] = [a, b + 1];
+    }
+    let end = n; while (end > 0 && !/[a-z]/.test(low[end - 1])) end--;
+    let le = false;
+    if (groups.length > 1) {
+      const g = groups[groups.length - 1], tail = low.slice(g[0], end), pre = low[g[0] - 1] || "";
+      if (tail === "e") {
+        if (pre === "l" && g[0] - 2 >= groups[groups.length - 2][1] && !vow(low[g[0] - 2])) le = true; else groups.pop();
+      } else if (tail === "es" && !/[sxzgc]/.test(pre) && !/(ch|sh)$/.test(low.slice(0, g[0]))) groups.pop();
+      else if (tail === "ed" && !/[td]/.test(pre)) groups.pop();
+    }
+    if (groups.length <= 1) return [s];
+    const out = [];
+    let p = 0;
+    for (let k = 1; k < groups.length; k++) {
+      const a = groups[k - 1][1], b = groups[k][0], cons = low.slice(a, b);
+      let cut;
+      if (le && k === groups.length - 1) cut = b - 2;              // ta|ble, lit|tle
+      else if (cons.length <= 1) cut = a;                         // V-CV
+      else if (cons.length === 2) cut = ONSET.has(cons) ? a : cons === "ck" || cons === "ng" ? b : a + 1;
+      else cut = ONSET.has(cons.slice(-2)) ? b - 2 : b - 1;
+      cut = Math.max(cut, groups[k - 1][0] + 1);
+      if (cut > p && cut < n) { out.push(s.slice(p, cut)); p = cut; }
+    }
+    out.push(s.slice(p));
+    return out;
+  }
+  /** "everything" -> ["e", "ve", "ry", "thing"]; hyphenated parts split first. */
+  K.syllabify = (word) => String(word).split(/(?<=-)/).flatMap(syllabifyPart).filter((x) => x.length);
+
+  // Syllable timing model for lyrics timed per line (fitted on songs with studio-timed
+  // syllables, see docs): about 0.28 s per syllable, longer syllables take a little
+  // longer (letters^0.5), a short breath between words, and never into the next line.
+  const SYL = { per: 0.28, pause: 0.3, wexp: 0.5, gap: 0.3, minD: 0.2 };
+  K.SYLLABLE_MODEL = SYL;
+  const letters = (x) => Math.max(1, String(x).toLowerCase().replace(/[^a-z\u00c0-\u024f]/g, "").length);
+  /**
+   * words: [{w}] of one line, start: its time, next: start of the next line.
+   * -> syllables [{t, d, w, j, wi}] (j: joins the next syllable; wi: word index)
+   */
+  K.timeLine = function (words, start, next) {
+    const syl = [];
+    words.forEach((W, wi) => {
+      const parts = K.syllabify(W.w);
+      parts.forEach((p, i) => syl.push({ w: p, j: i < parts.length - 1, wi, first: i === 0 }));
+    });
+    if (!syl.length) return [];
+    const wt = syl.map((S) => Math.pow(letters(S.w), SYL.wexp));
+    const mean = wt.reduce((a, b) => a + b, 0) / wt.length;
+    let pos = 0;
+    const at = syl.map((S, i) => {
+      if (S.first && i > 0) pos += SYL.gap;
+      const x = pos; pos += wt[i] / mean; return x;
+    });
+    const total = pos;
+    const span = Math.max(SYL.minD, Math.min(next - start - SYL.pause, syl.length * SYL.per));
+    return syl.map((S, i) => {
+      const t = start + span * at[i] / total;
+      const tn = i + 1 < syl.length ? start + span * at[i + 1] / total : start + span;
+      return { t, d: Math.max(0.08, tn - t - 0.02), w: S.w, j: S.j, wi: S.wi };
+    });
+  };
+
+  /** Karaoke vocals columns from parsed LRC, one entry per syllable. Word-synced
+   *  (enhanced LRC): words at their own times, syllables spread over each word;
+   *  line-synced: syllable times estimated from the line times (K.timeLine). */
+  K.vocalsFromLRC = function (P) {
+    const v = { t: [], d: [], w: [], j: [], l: [] };
+    const L = P.lines.filter((x) => x.t != null && x.text);
+    const push = (t, d, w, j, k) => { v.t.push(+t.toFixed(3)); v.d.push(+d.toFixed(3)); v.w.push(w); v.j.push(j ? 1 : 0); v.l.push(k); };
+    L.forEach((line, k) => {
+      const next = k + 1 < L.length ? L[k + 1].t : line.t + 6;
+      const words = line.words ? line.words : line.text.split(/\s+/).filter(Boolean).map((w) => ({ t: null, w }));
+      if (!words.some((W) => W.t != null)) {                    // line-synced
+        for (const S of K.timeLine(words, line.t, next)) push(S.t, S.d, S.w, S.j, k);
+        return;
+      }
+      let prevT = line.t;                                        // word-synced
+      words.forEach((W, i) => {
+        let t = W.t != null ? Math.max(W.t, prevT) : null, nt = next;
+        for (let q = i + 1; q < words.length; q++) if (words[q].t != null) { nt = words[q].t; break; }
+        if (t == null) t = prevT;                                // untimed word: with the previous one
+        const parts = K.syllabify(W.w);
+        const span = Math.max(0.08 * parts.length, Math.min(nt - t, 1.5, parts.length * SYL.per + 0.1));
+        parts.forEach((p, q) => push(t + span * q / parts.length, Math.max(0.08, span / parts.length), p, q < parts.length - 1, k));
+        prevT = t;
+      });
+    });
+    return v;
+  };
+
+  // ---- audio features ---------------------------------------------------------------------
+  /** Radix-2 FFT of size n with precomputed bit reversal and twiddles (in place). */
+  function makeFFT(n) {
+    const rev = new Uint32Array(n), cos = new Float64Array(n / 2), sin = new Float64Array(n / 2);
+    for (let i = 1, j = 0; i < n; i++) {
+      let bit = n >> 1;
+      for (; j & bit; bit >>= 1) j ^= bit;
+      j ^= bit; rev[i] = j;
+    }
+    for (let k = 0; k < n / 2; k++) { cos[k] = Math.cos(-2 * Math.PI * k / n); sin[k] = Math.sin(-2 * Math.PI * k / n); }
+    return function (re, im) {
+      for (let i = 1; i < n; i++) { const j = rev[i]; if (i < j) { let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; } }
+      for (let len = 2; len <= n; len <<= 1) {
+        const half = len >> 1, step = n / len;
+        for (let i = 0; i < n; i += len) {
+          for (let k = 0; k < half; k++) {
+            const p = i + k, q = p + half, wr = cos[k * step], wi = sin[k * step];
+            const tr = re[q] * wr - im[q] * wi, ti = re[q] * wi + im[q] * wr;
+            re[q] = re[p] - tr; im[q] = im[p] - ti; re[p] += tr; im[p] += ti;
+          }
+        }
+      }
+    };
+  }
+  /** Sliding median of width w (odd) over n values src[off + stride * i] (edges
+   *  repeat the end values), written to out[oOff + oStride * i]. A sorted window
+   *  kept in `buf`: each step removes one value and inserts one (no allocation). */
+  function slidingMedian(x, n, w, out, buf) {
+    // x, out: contiguous Float32Arrays of length n; edges repeat the end values
+    const h = w >> 1;
+    let len = 0;
+    for (let i = -h; i <= h; i++) {
+      const v = x[i < 0 ? 0 : i >= n ? n - 1 : i];
+      let q = len++; while (q > 0 && buf[q - 1] > v) { buf[q] = buf[q - 1]; q--; } buf[q] = v;
+    }
+    out[0] = buf[h];
+    for (let c = 1; c < n; c++) {
+      const a = c - h - 1, b = c + h;
+      const vo = x[a < 0 ? 0 : a >= n ? n - 1 : a], vi = x[b >= n ? n - 1 : b];
+      let q = 0; while (buf[q] !== vo) q++;
+      for (; q < w - 1; q++) buf[q] = buf[q + 1];                 // remove the outgoing value
+      q = w - 1; while (q > 0 && buf[q - 1] > vi) { buf[q] = buf[q - 1]; q--; } buf[q] = vi;   // insert the new one
+      out[c] = buf[h];
+    }
+  }
+  const tick = () => new Promise((r) => setTimeout(r, 0));
+
+  /** Harmonic-energy onset strength of the centre channel, 100 frames/s. */
+  K.vocalOnsets = async function (audioBuffer, T) {
+    let t0 = performance.now(); const lap = (k) => { if (T) { const n = performance.now(); T[k] = Math.round(n - t0); t0 = n; } };
+    const sr = audioBuffer.sampleRate, hop = Math.round(sr / 100), N = sr <= 8000 ? 512 : sr <= 16000 ? 1024 : 2048;
+    const L = audioBuffer.getChannelData(0), R = audioBuffer.numberOfChannels > 1 ? audioBuffer.getChannelData(1) : L;
+    const frames = Math.floor(L.length / hop) + 1;             // frame f is centred on sample f * hop
+    const k0 = Math.ceil(150 * N / sr), k1 = Math.floor(3500 * N / sr), nb = k1 - k0 + 1;
+    const b0 = Math.ceil(250 * N / sr) - k0, b1 = Math.floor(3000 * N / sr) - k0;
+    const S = new Float32Array(frames * nb), win = new Float32Array(N), re = new Float64Array(N), im = new Float64Array(N), fft = makeFFT(N);
+    for (let i = 0; i < N; i++) win[i] = 0.5 - 0.5 * Math.cos(2 * Math.PI * i / (N - 1));
+    const M = new Float32Array(L.length + 2 * N);                // centre channel, zero-padded by N on both sides
+    for (let i = 0; i < L.length; i++) M[N + i] = 0.5 * (L[i] + R[i]);
+    for (let f = 0; f < frames; f += 2) {                      // two real frames per complex FFT
+      const o = f * hop - N / 2, o2 = o + hop, two = f + 1 < frames;
+      for (let i = 0, a = N + o, b = N + o2; i < N; i++) { re[i] = M[a + i] * win[i]; im[i] = two ? M[b + i] * win[i] : 0; }
+      fft(re, im);
+      for (let k = 0; k < nb; k++) {                           // X[k] = (Z[k] + conj Z[N-k]) / 2, Y[k] = (Z[k] - conj Z[N-k]) / 2i
+        const kk = k0 + k, nk = (N - kk) & (N - 1);
+        const xr = 0.5 * (re[kk] + re[nk]), xi = 0.5 * (im[kk] - im[nk]);
+        S[f * nb + k] = Math.sqrt(xr * xr + xi * xi);
+        if (two) { const yr = 0.5 * (im[kk] + im[nk]), yi = -0.5 * (re[kk] - re[nk]); S[(f + 1) * nb + k] = Math.sqrt(yr * yr + yi * yi); }
+      }
+      if ((f & 2047) === 0) await tick();
+    }
+    lap("stft");
+    // harmonic (median over 17 frames) vs percussive (median over 17 bins)
+    const H = new Float32Array(frames * nb), P = new Float32Array(frames * nb), buf = new Float32Array(17);
+    const col = new Float32Array(frames), colM = new Float32Array(frames);
+    for (let k = b0; k <= b1; k++) {                           // along time, per scored bin (copied out: contiguous)
+      for (let f = 0; f < frames; f++) col[f] = S[f * nb + k];
+      slidingMedian(col, frames, 17, colM, buf);
+      for (let f = 0; f < frames; f++) H[f * nb + k] = colM[f];
+      if ((k & 31) === 0) await tick();
+    }
+    const lo = Math.max(0, b0 - 8), hi = Math.min(nb - 1, b1 + 8), span = hi - lo + 1;   // frequency median: scored bins + context
+    for (let f = 0; f < frames; f++) {                         // along frequency, per frame
+      slidingMedian(S.subarray(f * nb + lo, f * nb + hi + 1), span, 17, P.subarray(f * nb + lo, f * nb + hi + 1), buf);
+      if ((f & 4095) === 0) await tick();
+    }
+    lap("medians");
+    const e = new Float32Array(frames);
+    for (let f = 0; f < frames; f++) {
+      let s = 0;
+      for (let k = b0; k <= b1; k++) {
+        const h = H[f * nb + k], p = P[f * nb + k], m = S[f * nb + k] * (h * h / (h * h + p * p + 1e-12));
+        s += m * m;
+      }
+      e[f] = Math.log(1e-9 + s);
+    }
+    const fl = new Float32Array(frames);
+    for (let f = 1; f < frames; f++) fl[f] = Math.max(0, e[f] - e[f - 1]);
+    const out = new Float32Array(frames);                     // minus the 1 s moving average, >= 0
+    let acc = 0;
+    for (let f = 0; f < frames + 50; f++) {
+      if (f < frames) acc += fl[f];
+      if (f - 100 >= 0) acc -= fl[f - 100];
+      const c = f - 50;
+      if (c >= 0 && c < frames) out[c] = Math.max(0, fl[c] - acc / 100);
+    }
+    lap("flux");
+    return out;
+  };
+
+  // ---- alignment -------------------------------------------------------------------------
+  /** Estimated word onsets of LRC lines (the syllable model of K.timeLine). */
+  K.estimatedOnsets = function (lines, starts) {
+    const ev = [];
+    lines.forEach((line, k) => {
+      const s = starts[k], next = k + 1 < starts.length ? starts[k + 1] : s + 8;
+      const words = [], seen = new Set();                        // prepared lines hold syllables: rejoin words
+      let cur = "";
+      for (const W of line.words) { cur += W.w; if (!W.j) { words.push({ w: cur }); cur = ""; } }
+      if (cur) words.push({ w: cur });
+      for (const S of K.timeLine(words, s, next)) if (!seen.has(S.wi)) { seen.add(S.wi); ev.push(S.t); }
+    });
+    return ev;
+  };
+
+  /**
+   * buf: an AudioBuffer of this recording; lines: prepared karaoke lines (with
+   * words); opts: {audioDuration, lrcDuration, window = 2, margin = 0.08}.
+   * -> {offset (s, add to the lyric times), confidence (peak z-score), moved}
+   */
+  K.alignLRC = async function (buf, lines, opts) {
+    opts = opts || {};
+    if (lines.length < 8) return { offset: 0, confidence: 0, moved: false, reason: "too few lines to sync reliably" };
+    const o = await K.vocalOnsets(buf), n = o.length;
+    const box = new Float32Array(n);                           // +-100 ms
+    let acc = 0;
+    for (let i = 0; i < n + 10; i++) {
+      if (i < n) acc += o[i];
+      if (i - 21 >= 0) acc -= o[i - 21];
+      const c = i - 10;
+      if (c >= 0 && c < n) box[c] = acc;
+    }
+    const starts = lines.map((L) => L.start);
+    const ev = K.estimatedOnsets(lines, starts).map((t) => Math.round(t * 100));
+    const score = (lag) => { let s = 0; for (const e of ev) { const i = e + lag; if (i >= 0 && i < n) s += box[i]; } return s; };
+    const W = Math.round(100 * (opts.window || 2));
+    const priors = [0];
+    const d = (+opts.audioDuration || 0) - (+opts.lrcDuration || 0);
+    if (opts.lrcDuration && Math.abs(d) > 1 && Math.abs(d) < 30) priors.push(Math.round(d * 100));
+    const all = [];
+    let best = { s: -Infinity, lag: 0 }, at0 = { s: -Infinity, lag: 0 };
+    for (const p of priors) {
+      for (let lag = p - W; lag <= p + W; lag++) {
+        const s = score(lag);
+        all.push(s);
+        if (s > best.s) best = { s, lag };
+        if (Math.abs(lag) <= 5 && s > at0.s) at0 = { s, lag };
+      }
+    }
+    const mean = all.reduce((a, b) => a + b, 0) / all.length;
+    const sd = Math.sqrt(all.reduce((a, b) => a + (b - mean) * (b - mean), 0) / all.length) || 1;
+    const pick = best.s >= at0.s * (1 + (opts.margin == null ? 0.08 : opts.margin)) ? best : at0;
+    return { offset: pick.lag / 100, confidence: +((pick.s - mean) / sd).toFixed(2), moved: pick !== at0 };
+  };
+
+  // ---- online lookup (browser fallback; the app and the exporters look up on the server) ---
+  const clean = (s) => String(s || "").replace(/\s*[([].*?(live|remaster|version|edit|mix|mono|stereo|feat).*?[)\]]/gi, "").trim();
+  const mainArtist = (s) => String(s || "").replace(/\s*[([]\s*(?:ft\.?|feat\.?|featuring|with)\s[^)\]]*[)\]]/gi, "")
+    .split(/\s+(?:ft\.?|feat\.?|featuring|with|&|and|x)\s+|,/i)[0].trim();
+  K.pickLRCLIB = function (results, q) {
+    const dur = +q.duration || 0;
+    const ok = (results || []).filter((r) => !r.instrumental && (r.syncedLyrics || r.plainLyrics));
+    ok.sort((a, b) => (!!b.syncedLyrics - !!a.syncedLyrics) ||
+      (dur ? Math.abs((a.duration || 0) - dur) - Math.abs((b.duration || 0) - dur) : 0));
+    return ok[0] || null;
+  };
+  K.lookupLRCLIB = async function (q, fetchImpl) {
+    const f = fetchImpl || root.fetch.bind(root), base = "https://lrclib.net/api/search?";
+    const tries = [];
+    const add = (a, t) => { const u = base + new URLSearchParams({ artist_name: a, track_name: t }); if (!tries.includes(u)) tries.push(u); };
+    add(q.artist || "", q.title || ""); add(mainArtist(q.artist), clean(q.title));
+    tries.push(base + new URLSearchParams({ q: `${mainArtist(q.artist)} ${clean(q.title)}`.trim() }));
+    let reached = false;
+    for (const u of tries) {
+      try {
+        const r = await f(u, { headers: { Accept: "application/json" } });
+        reached = true;
+        if (!r.ok) continue;
+        const hit = K.pickLRCLIB(await r.json(), q);
+        if (hit) return { lrc: hit.syncedLyrics || hit.plainLyrics, synced: hit.syncedLyrics ? "line" : "none",
+                          lrcDuration: hit.duration || null, source: "lrclib", url: `https://lrclib.net/api/get/${hit.id}` };
+      } catch (e) { /* offline, blocked (CORS): try the next query */ }
+    }
+    return reached ? null : { offline: true };
+  };
+})(window);
+</script>
+<script>
+/* ---------------------------------------------------------------------------
+ * karaoke-page.js -- standalone-page host for the karaoke player (the HTML
+ * delivery format; karaoke_export_html() inlines it with karaoke.js).
+ *
+ * Reads <script id="rs-karaoke-data">{title, options, songs: [karaoke_json()
+ * payloads]}; each song's audio is {embed: <id of a base64 <script>>, type},
+ * {src: relative URL, type} or absent ("Load audio..." pairs a local file).
+ * Catalogs (big libraries, karaoke_export_library()): a song is a stub
+ * {id, meta, lyrics: "archive" | "web", src} and its payload is a script
+ * loaded when the song is picked -- `RSKaraokeSong(id, payload)` -- which works
+ * from disk (file://) as well as from a server (that may build it on demand).
+ * View, text size and speed are remembered in localStorage, the lyrics timing
+ * per song; so are lyrics found online by the browser, loaded .lrc files and the
+ * offset found when syncing LRC lyrics to the recording (karaoke-sync.js).
+ * ------------------------------------------------------------------------- */
+(function () {
+  "use strict";
+  const K = window.RSKaraoke;
+  const data = JSON.parse(document.getElementById("rs-karaoke-data").textContent || "{}");
+  const songs = data.songs || [];
+  const $ = (id) => document.getElementById(id);
+  const STORE = "rs-karaoke-page";
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(STORE) || "{}") || {}; } catch (e) { saved = {}; }
+  const opts = Object.assign({ view: "stage", textScale: 1, playbackRate: 1 }, data.options || {}, saved.opts || {});
+  const offsets = Object.assign({}, saved.offsets || {});
+  const recent = Array.isArray(saved.recentRandom) ? saved.recentRandom : [];     // songs picked at random lately
+  const synced = Object.assign({}, saved.synced || {});        // songKey -> offset (ms) found when syncing an LRC
+  const lyricsSaved = Object.assign({}, saved.lyrics || {});   // songKey -> {lrc, source, lrcDuration}: found / loaded here
+  let current = -1;
+
+  const el = $("rs-karaoke");
+  const player = new K.KaraokePlayer(el, {
+    emptyHtml: "<b>No songs in this page</b>",
+    onAligned: (a) => { synced[a.songKey] = a.offsetMs; save(); },
+    onLyrics: (a) => { lyricsSaved[a.songKey] = { lrc: a.lyrics.lrc, source: a.lyrics.source, lrcDuration: a.lyrics.lrcDuration }; save(); },
+  });
+  window.karaokePage = { player, songs, load: (i) => loadSong(i) };          // (for scripting and tests)
+
+  function save() {
+    try { localStorage.setItem(STORE, JSON.stringify({ opts: { view: opts.view, textScale: opts.textScale, playbackRate: opts.playbackRate },
+                                                       offsets, synced, lyrics: lyricsSaved, song: songs[current] && ident(songs[current]),
+                                                       recentRandom: recent })); } catch (e) { /* private mode, full */ }
+  }
+  function label(s) { const m = s.meta || {}; return [m.artist, m.title].filter(Boolean).join(" \u2014 ") || "Untitled"; }
+  const key = () => (songs[current] ? songs[current].songKey : null);
+  const ident = (s) => s.id || s.songKey;                     // catalog stubs have no songKey until loaded
+  const webLyrics = (s) => s.lyrics === "web" || (s.lyrics && s.lyrics.source && s.lyrics.source !== "archive");
+
+  // ---- controls -------------------------------------------------------------------------
+  const sel = $("rs-kp-song"), find = $("rs-kp-find");
+  /** The song picker; with many songs, grouped (lyrics in the file / from the web) and filtered by the search box. */
+  function fillPicker(q) {
+    const words = String(q || "").toLowerCase().split(/\s+/).filter(Boolean);
+    const hit = (s) => { const t = label(s).toLowerCase(); return words.every((w) => t.includes(w)); };
+    sel.innerHTML = "";
+    const groups = songs.length > 20 && songs.some(webLyrics) && songs.some((s) => !webLyrics(s))
+      ? [["Songs with lyrics", (s) => !webLyrics(s)], ["Lyrics from the web", webLyrics]] : [[null, () => true]];
+    let n = 0;
+    for (const [name, test] of groups) {
+      const parent = name ? document.createElement("optgroup") : sel;
+      if (name) parent.label = name;
+      songs.forEach((s, i) => {
+        if (!test(s) || (words.length && !hit(s) && i !== current)) return;
+        const o = document.createElement("option"); o.value = i; o.textContent = label(s); parent.appendChild(o); n++;
+      });
+      if (name && parent.children.length) sel.appendChild(parent);
+    }
+    if (current >= 0) sel.value = String(current);
+    return n;
+  }
+  fillPicker("");
+  document.body.classList.toggle("is-single", songs.length < 2);
+  document.body.classList.toggle("has-find", songs.length > 20);
+  sel.addEventListener("change", () => { loadSong(+sel.value); sel.blur(); });
+  if (find) {
+    find.placeholder = `Search ${songs.length} songs\u2026`;
+    find.addEventListener("input", () => fillPicker(find.value));
+    find.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {                                   // Enter: the first match
+        const o = [...sel.options].find((x) => +x.value !== current) || sel.options[0];
+        if (o) loadSong(+o.value);
+        find.blur(); e.preventDefault();
+      } else if (e.key === "Escape") { find.value = ""; fillPicker(""); find.blur(); }
+    });
+  }
+
+  function showView() { document.querySelectorAll("[data-view]").forEach((b) => b.classList.toggle("is-on", b.dataset.view === opts.view)); }
+  document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => {
+    opts.view = b.dataset.view; player.applyOptions({ view: opts.view }); showView(); save(); b.blur();
+  }));
+  const size = (f) => { opts.textScale = Math.max(0.5, Math.min(2.2, Math.round(opts.textScale * f * 100) / 100)); player.applyOptions({ textScale: opts.textScale }); save(); };
+  $("rs-kp-smaller").addEventListener("click", (e) => { size(1 / 1.1); e.currentTarget.blur(); });
+  $("rs-kp-bigger").addEventListener("click", (e) => { size(1.1); e.currentTarget.blur(); });
+
+  const offLabel = $("rs-kp-offset");
+  function showOffset() { const v = offsets[key()] || 0; offLabel.textContent = `${v > 0 ? "+" : ""}${v} ms`; }
+  function nudge(ms) {
+    const k = key(); if (!k) return;
+    offsets[k] = Math.max(-2000, Math.min(2000, (offsets[k] || 0) + ms));
+    player.applyOptions({ offsetMs: offsets[k] }); showOffset(); save();
+  }
+  $("rs-kp-earlier").addEventListener("click", (e) => { nudge(e.shiftKey ? -100 : -10); e.currentTarget.blur(); });
+  $("rs-kp-later").addEventListener("click", (e) => { nudge(e.shiftKey ? 100 : 10); e.currentTarget.blur(); });
+  offLabel.addEventListener("dblclick", () => nudge(-(offsets[key()] || 0)));
+
+  const speed = $("rs-kp-speed");
+  speed.value = String(opts.playbackRate);
+  speed.addEventListener("change", () => { opts.playbackRate = +speed.value; player.applyOptions({ playbackRate: opts.playbackRate }); save(); speed.blur(); });
+
+  $("rs-kp-audio").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f || !key()) return;
+    player.deck.unload();                                  // replaces any embedded audio
+    player.setAudio(URL.createObjectURL(f), key(), "full").then((ok) => {
+      if (ok) player.status(`Playing along with \u201c${f.name}\u201d. If the words run early or late, adjust the timing (\u2212 / +).`, "info");
+      setTimeout(() => player.status("", "clear"), 6000);
+    });
+    e.target.value = "";
+  });
+  $("rs-kp-lrc").addEventListener("change", async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f || !key()) return;
+    const lrc = await f.text(), k = key();
+    if (!K.parseLRC(lrc).lines.length) { player.status(`\u201c${f.name}\u201d contains no lyrics.`, "error"); return; }
+    lyricsSaved[k] = { lrc, source: "file" }; delete synced[k]; save();
+    player.setLyrics({ lrc, source: "file", songKey: k });
+    player.status(`Lyrics from \u201c${f.name}\u201d: syncing them to the song\u2026`, "info");
+  });
+  const full = () => { if (document.fullscreenElement) document.exitFullscreen(); else if (el.requestFullscreen) el.requestFullscreen(); };
+  $("rs-kp-full").addEventListener("click", (e) => { full(); e.currentTarget.blur(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "KeyF" && !e.ctrlKey && !e.metaKey && !e.altKey && !/INPUT|SELECT|TEXTAREA/.test(e.target.tagName)) { full(); e.preventDefault(); }
+  });
+
+  // ---- songs ------------------------------------------------------------------------------
+  // catalog stubs: the payload script calls RSKaraokeSong(id, payload)
+  const pending = {};
+  window.RSKaraokeSong = (id, payload) => { if (pending[id]) pending[id](payload); };
+  function fetchSong(i) {
+    const stub = songs[i];
+    return new Promise((resolve, reject) => {
+      const tag = document.createElement("script");
+      const done = () => { delete pending[stub.id]; tag.remove(); };
+      pending[stub.id] = (payload) => { done(); resolve(payload); };
+      tag.onerror = () => { done(); reject(new Error(stub.src)); };
+      tag.src = stub.src;
+      document.head.appendChild(tag);
+    });
+  }
+  let loading = 0;
+  function loadSong(i) {
+    if (!songs[i]) return;
+    if (!songs[i].vocals && songs[i].src) {                      // catalog: fetch the song first
+      const ticket = ++loading;
+      current = i; sel.value = String(i);
+      player.status(`Loading \u201c${label(songs[i])}\u201d\u2026`, "info");
+      fetchSong(i).then((payload) => {
+        songs[i] = Object.assign(payload, { id: songs[i].id });
+        if (ticket === loading) loadSong(i);
+      }, (e) => {
+        if (ticket === loading) player.status(`Could not load this song (${e.message}).`, "error");
+      });
+      return;
+    }
+    loading++;
+    current = i; sel.value = String(i);
+    const s = songs[i];
+    // lyrics found / loaded here before, and the sync offset found before
+    const ls = lyricsSaved[s.songKey];
+    if (ls && (!s.lyrics || s.lyrics.source === "lookup" || ls.source === "file")) {
+      s.vocals = { t: [], d: [], w: [], j: [], l: [] };
+      s.lyrics = Object.assign({ align: true }, ls);
+    }
+    if (s.lyrics && s.lyrics.lrc && s.lyrics.offsetMs == null && synced[s.songKey] != null) s.lyrics.offsetMs = synced[s.songKey];
+    player.load({ song: s, options: Object.assign({}, opts, { offsetMs: offsets[s.songKey] || 0 }) });
+    document.title = songs.length > 1 ? `${label(s)} \u2014 karaoke` : (data.title || document.title);
+    showOffset(); save();
+    const a = s.audio;
+    if (a && a.embed) {
+      const node = document.getElementById(a.embed);
+      if (node) player.setAudio(`data:${a.type || "audio/ogg"};base64,${node.textContent.trim()}`, s.songKey, "full");
+    } else if (a && a.src) {
+      player.setAudio(a.src, s.songKey, "full");
+    } else {
+      player.status("This page has no audio \u2014 use \u201cAudio\u2026\u201d to sing along with your own copy of the song.", "info");
+      setTimeout(() => { if (!player.deck.audio && current === i) player.status("", "clear"); }, 8000);
+    }
+  }
+  // ---- shuffle: every visit starts with a song picked at random (not one of the last few);
+  // the button picks another one -------------------------------------------------------
+  function pickRandom() {
+    if (songs.length < 2) return 0;
+    const fits = (s) => s.lyrics === "archive" || (s.vocals && arr(s.vocals.t).length);     // lyrics at hand
+    let pool = songs.map((s, i) => i).filter((i) => i !== current && !recent.includes(ident(songs[i])));
+    const sung = pool.filter((i) => fits(songs[i]));
+    if (sung.length) pool = sung;
+    if (!pool.length) pool = songs.map((s, i) => i).filter((i) => i !== current);
+    const i = pool[Math.floor(Math.random() * pool.length)];
+    recent.unshift(ident(songs[i])); recent.length = Math.min(recent.length, Math.min(10, Math.floor(songs.length / 2)));
+    return i;
+  }
+  const arr = (x) => (x == null ? [] : Array.isArray(x) ? x : [x]);
+  const shuffleBtn = $("rs-kp-shuffle");
+  if (shuffleBtn) {
+    shuffleBtn.addEventListener("click", (e) => { loadSong(pickRandom()); e.currentTarget.blur(); });
+    shuffleBtn.style.display = songs.length > 1 ? "" : "none";
+  }
+  showView();
+  if (songs.length) loadSong(pickRandom());
+})();
+</script>
+</body>
+</html>
