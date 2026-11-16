@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 712" width="1200" height="712" font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="0.7" cy="0" r="1.1">
+      <stop offset="0" stop-color="#1a2035"/><stop offset="0.6" stop-color="#0b0d13"/>
+    </radialGradient>
+    <linearGradient id="logo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffc46b"/><stop offset="1" stop-color="#f08a00"/></linearGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#f5a524"/>
+    </marker>
+    <marker id="arrowGrey" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0 L10 5 L0 10 z" fill="#9aa3b8"/>
+    </marker>
+    <style>
+      .title { font-size: 26px; font-weight: 800; fill: #e8eaf1; letter-spacing: -0.02em; }
+      .sub { font-size: 14px; fill: #9aa3b8; }
+      .panel-title { font-size: 15px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+      .card { fill: #141824; stroke: rgba(255,255,255,0.10); stroke-width: 1; }
+      .h { font-size: 15px; font-weight: 750; fill: #eef0f6; }
+      .t { font-size: 12.5px; fill: #b8bfd0; }
+      .f { font-size: 11px; fill: #7d869b; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .num { font-size: 13px; font-weight: 800; fill: #1a1206; }
+      .lab { font-size: 12px; font-weight: 700; fill: #f5a524; }
+      .labg { font-size: 12px; font-weight: 600; fill: #9aa3b8; }
+      .flow { stroke: #f5a524; stroke-width: 2.2; fill: none; }
+      .back { stroke: #9aa3b8; stroke-width: 1.6; fill: none; stroke-dasharray: 5 5; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="712" fill="url(#bg)"/>
+
+  <!-- title -->
+  <path transform="translate(32 26) scale(1.05)" fill="url(#logo)" d="M16 2C9 2 4 5 4 10c0 8 7 17 12 20 5-3 12-12 12-20 0-5-5-8-12-8z"/>
+  <path transform="translate(32 26) scale(1.05)" fill="#1a1206" d="M13 9h6v2h-2v9.3a3 3 0 1 1-2-2.8V11h-2z"/>
+  <text x="76" y="50" class="title">How RockShiny works</text>
+  <text x="76" y="72" class="sub">R does the heavy lifting once per song  ·  the browser does everything that happens 60 times a second</text>
+
+  <!-- 1. your files -->
+  <rect x="30" y="118" width="190" height="300" rx="16" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.10)"/>
+  <text x="50" y="148" class="panel-title" fill="#cfd5e4">Your songs</text>
+  <rect x="48" y="166" width="154" height="62" rx="10" class="card"/>
+  <text x="62" y="192" class="h">.psarc</text>
+  <text x="62" y="212" class="t">Rocksmith 2014 song</text>
+  <rect x="48" y="240" width="154" height="62" rx="10" class="card"/>
+  <text x="62" y="266" class="h">.mid</text>
+  <text x="62" y="286" class="t">MIDI file (no audio)</text>
+  <text x="50" y="334" class="t">from the songs/ folder,</text>
+  <text x="50" y="352" class="t">or dropped on the sidebar</text>
+  <text x="50" y="390" class="f">mod_import.R</text>
+  <text x="50" y="406" class="f">mod_karaoke.R</text>
+
+  <!-- 2. R / Shiny server -->
+  <rect x="262" y="118" width="392" height="442" rx="18" fill="rgba(59,130,246,0.07)" stroke="#3b82f6" stroke-opacity="0.55"/>
+  <text x="284" y="148" class="panel-title" fill="#7fb3ff">R  ·  Shiny server</text>
+
+  <g>
+    <rect x="284" y="164" width="348" height="78" rx="12" class="card"/>
+    <circle cx="309" cy="203" r="13" fill="#7fb3ff"/><text x="309" y="208" class="num" text-anchor="middle">1</text>
+    <text x="334" y="190" class="h">Unpack</text>
+    <text x="334" y="210" class="t">decrypt the table of contents, inflate</text>
+    <text x="334" y="230" class="f">psarc.R · crypto.R</text>
+  </g>
+  <g>
+    <rect x="284" y="254" width="348" height="78" rx="12" class="card"/>
+    <circle cx="309" cy="293" r="13" fill="#7fb3ff"/><text x="309" y="298" class="num" text-anchor="middle">2</text>
+    <text x="334" y="280" class="h">Read</text>
+    <text x="334" y="300" class="t">charts (XML or SNG), lyrics (or LRCLIB), MIDI</text>
+    <text x="334" y="320" class="f" style="font-size:10px">arrangement_xml.R · sng.R · vocals.R · lyrics_online.R</text>
+  </g>
+  <g>
+    <rect x="284" y="344" width="348" height="78" rx="12" class="card"/>
+    <circle cx="309" cy="383" r="13" fill="#7fb3ff"/><text x="309" y="388" class="num" text-anchor="middle">3</text>
+    <text x="334" y="370" class="h">Shape</text>
+    <text x="334" y="390" class="t">difficulty, piano / harmonica, karaoke → JSON</text>
+    <text x="334" y="410" class="f">chart.R · instruments.R · karaoke.R</text>
+  </g>
+  <g>
+    <rect x="284" y="434" width="348" height="106" rx="12" class="card"/>
+    <circle cx="309" cy="473" r="13" fill="#f5a524"/><text x="309" y="478" class="num" text-anchor="middle">4</text>
+    <text x="334" y="460" class="h">Audio</text>
+    <text x="334" y="480" class="t">Wwise .wem → vgmstream → ffmpeg,</text>
+    <text x="334" y="498" class="t">in the background, cached once per song;</text>
+    <text x="334" y="516" class="t">a 30 s quick-start clip plays first</text>
+    <text x="334" y="532" class="f">audio.R · audio_jobs.R · audio_feed.R</text>
+  </g>
+  <path d="M458 242 v12" class="flow" marker-end="url(#arrow)"/>
+  <path d="M458 332 v12" class="flow" marker-end="url(#arrow)"/>
+
+  <!-- 3. browser -->
+  <rect x="776" y="118" width="394" height="442" rx="18" fill="rgba(168,85,247,0.07)" stroke="#a855f7" stroke-opacity="0.55"/>
+  <text x="798" y="148" class="panel-title" fill="#c99bff">Browser</text>
+
+  <rect x="798" y="164" width="350" height="104" rx="12" class="card"/>
+  <text x="816" y="192" class="h">Note highway</text>
+  <text x="816" y="212" class="t">guitar · bass · piano · harmonica, 3-D camera</text>
+  <text x="816" y="230" class="t">practice loops, microphone scoring</text>
+  <text x="816" y="252" class="f">inst/highway/  (binding.js, renderer*.js)</text>
+
+  <rect x="798" y="282" width="350" height="104" rx="12" class="card"/>
+  <text x="816" y="308" class="h">Karaoke</text>
+  <text x="816" y="328" class="t">big lyrics, each syllable wiped as it is sung;</text>
+  <text x="816" y="346" class="t">web lyrics (LRCLIB) synced to the audio</text>
+  <text x="816" y="368" class="f">inst/karaoke/  (karaoke.js, karaoke-sync.js)</text>
+
+  <rect x="798" y="400" width="350" height="140" rx="12" fill="rgba(245,165,36,0.08)" stroke="#f5a524" stroke-opacity="0.6"/>
+  <text x="816" y="426" class="h">One clock for both</text>
+  <text x="816" y="448" class="t">the &lt;audio&gt; element is the master clock,</text>
+  <text x="816" y="466" class="t">smoothed every frame and shifted by the</text>
+  <text x="816" y="484" class="t">output latency: you see what you hear</text>
+  <text x="816" y="510" class="f">inst/highway/clock.js</text>
+  <path d="M973 268 v14" stroke="#f5a524" stroke-opacity="0.5" stroke-width="1.5"/>
+  <path d="M973 386 v14" stroke="#f5a524" stroke-opacity="0.5" stroke-width="1.5"/>
+
+  <!-- arrows between columns -->
+  <path d="M220 268 C 240 268, 250 268, 262 268" class="flow" marker-end="url(#arrow)"/>
+  <path d="M632 383 C 700 383, 712 276, 776 276" class="flow" marker-end="url(#arrow)"/>
+  <text x="716" y="398" class="lab" text-anchor="middle">song data</text>
+  <text x="716" y="414" class="labg" text-anchor="middle">JSON, once</text>
+  <path d="M632 488 C 700 488, 712 470, 776 470" class="flow" marker-end="url(#arrow)"/>
+  <text x="715" y="505" class="lab" text-anchor="middle">audio file</text>
+  <text x="715" y="521" class="labg" text-anchor="middle">from the cache</text>
+  <path d="M776 140 C 736 110, 690 110, 654 128" class="back" marker-end="url(#arrowGrey)"/>
+  <text x="715" y="100" class="labg" text-anchor="middle">“ready”, scores, settings (small messages)</text>
+
+  <!-- 4. standalone HTML -->
+  <rect x="262" y="592" width="908" height="92" rx="18" fill="rgba(20,184,166,0.08)" stroke="#14b8a6" stroke-opacity="0.6"/>
+  <text x="284" y="622" class="panel-title" fill="#5eead4">Standalone HTML</text>
+  <text x="284" y="646" class="t">karaoke_export_html()  in R,  or  tools/karaoke_export_html.py  without R</text>
+  <text x="284" y="666" class="t">→ one .html file: lyrics + album art + audio + the same karaoke player. Opens offline, no server.</text>
+  <path d="M458 560 v32" class="flow" marker-end="url(#arrow)"/>
+  <rect x="1000" y="612" width="150" height="52" rx="10" class="card"/>
+  <text x="1075" y="636" class="h" text-anchor="middle">song.html</text>
+  <text x="1075" y="654" class="t" text-anchor="middle">any browser</text>
+</svg>

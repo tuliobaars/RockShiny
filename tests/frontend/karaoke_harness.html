@@ -1,0 +1,52 @@
+<!doctype html>
+<!-- Karaoke harness: the real karaoke assets (plus clock.js / dds.js) behind a
+     minimal Shiny stub, so the player can be tested without an R process.
+     Serve the repo root over HTTP and open
+     /tests/frontend/karaoke_harness.html?song=karaoke_sultans&audio=karaoke_clicks.ogg -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>RockShiny karaoke harness</title>
+  <script>window.$ = () => ({ find: () => [] });  /* binding.find() only runs under real Shiny */</script>
+  <script>
+    window.__inputs = [];
+    window.Shiny = {
+      OutputBinding: function () {},
+      outputBindings: { register(b, name) { (window.__bindings = window.__bindings || {})[name] = b; } },
+      addCustomMessageHandler(type, fn) { (window.__handlers = window.__handlers || {})[type] = fn; },
+      setInputValue(name, value) { window.__inputs.push({ name, value, at: performance.now() }); },
+    };
+  </script>
+  <link rel="stylesheet" href="../../inst/karaoke/karaoke.css">
+  <script src="../../inst/highway/clock.js"></script>
+  <script src="../../inst/highway/dds.js"></script>
+  <script src="../../inst/karaoke/karaoke.js"></script>
+  <script src="../../inst/karaoke/karaoke-sync.js"></script>
+  <script src="../../inst/karaoke/karaoke-shiny.js"></script>
+  <style>body { margin: 0; background: #000; } #kk { width: 100vw; height: 100vh; }</style>
+</head>
+<body>
+  <div id="kk" class="rs-karaoke" tabindex="0"></div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    window.harness = {
+      async loadSong(name, options) {
+        const txt = await (await fetch(`fixtures/${name}.json`)).text();
+        window.__bindings["rockshiny.karaoke"].renderValue(document.getElementById("kk"), { song: txt, options: options || {} });
+        return JSON.parse(txt).songKey;
+      },
+      message(cmd, args) { window.__handlers["rs-karaoke"]({ id: "kk", cmd, args: args || {} }); },
+      ctl() { return RSKaraoke.players.get("kk"); },
+    };
+    (async () => {
+      if (!q.get("song")) return;
+      const opts = {};
+      for (const k of ["view", "textScale", "offsetMs"]) if (q.get(k) != null) opts[k] = isNaN(+q.get(k)) ? q.get(k) : +q.get(k);
+      const key = await harness.loadSong(q.get("song"), opts);
+      if (q.get("audio")) harness.message("audio", { url: `fixtures/${q.get("audio")}`, songKey: key });
+      if (q.get("t")) harness.message("seek", { time: +q.get("t") });
+      window.__ready = true;
+    })();
+  </script>
+</body>
+</html>

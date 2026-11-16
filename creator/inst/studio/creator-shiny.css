@@ -1,0 +1,45 @@
+/* RockShiny Creator inside Shiny (creator/R/mod_*.R): the studio fills the main
+   area of the layout, the sidebar uses RockShiny's app.css (.rs-sidebar,
+   .rs-accordion, .rs-dropzone...) plus the few Creator-specific bits below. */
+.rsc-shiny { width: 100%; height: 100%; min-height: 560px; }
+.rsc-main { padding: 14px 14px 14px 0; }
+.bslib-sidebar-layout > .main > .rsc-shiny, .rsc-main > .rsc-shiny { flex: 1 1 auto; }
+.rsc-sidebar .accordion-body > .shiny-input-container:last-child { margin-bottom: .4rem; }
+.rsc-sidebar .btn-primary { background: #f5a524; border-color: #f5a524; color: #1a1206; font-weight: 700; box-shadow: 0 0 16px rgba(245,165,36,.25); }
+.rsc-sidebar .btn-primary:hover, .rsc-sidebar .btn-primary:focus { background: #ffb739; border-color: #ffb739; color: #1a1206; }
+.rsc-sidebar .rsc-wide { width: 100%; margin-bottom: .5rem; }
+.rsc-sidebar .btn-default:not(.btn-primary):not(.rs-shuffle), .rsc-sidebar .btn-secondary { background: #1a1f2e; border: 1px solid rgba(255,255,255,.12); color: #e8eaf1; }
+.rsc-sidebar .btn-default:not(.btn-primary):not(.rs-shuffle):hover { background: #222839; color: #fff; }
+.rsc-sidebar .rsc-platform .shiny-options-group { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(255,255,255,.045); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+.rsc-sidebar .rsc-platform .form-check, .rsc-sidebar .rsc-platform .radio-inline { flex: 1; margin: 0; padding: 0; }
+.rsc-sidebar .rsc-platform input[type=radio] { position: absolute; opacity: 0; pointer-events: none; }
+.rsc-sidebar .rsc-platform label { display: block; text-align: center; padding: .32rem .6rem; border-radius: 7px; cursor: pointer; font-weight: 650; font-size: .82rem; color: rgba(232,234,241,.62); margin: 0; }
+.rsc-sidebar .rsc-platform .form-check-input:checked + .form-check-label, .rsc-sidebar .rsc-platform input:checked + span { background: #f5a524; color: #1a1206; }
+.rsc-sidebar .rsc-platform .radio-inline input:checked + span { display: block; border-radius: 7px; }
+.rsc-report { font-size: .8rem; line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); margin: .2rem 0 .6rem; }
+.rsc-report.is-ok { color: #bff0c8; box-shadow: inset 0 0 0 1px rgba(70,200,120,.3); }
+.rsc-report.is-error { color: #ffc2ba; box-shadow: inset 0 0 0 1px rgba(255,110,95,.35); }
+.rsc-report b { color: #fff; }
+.rsc-report code { color: #ffc46b; font-size: .75rem; word-break: break-all; }
+.rsc-play { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: .6rem; }
+.rsc-state { font-size: .78rem; color: rgba(232,234,241,.6); margin: -.2rem 0 .7rem; line-height: 1.45; }
+.rsc-state b { color: #e8eaf1; }
+.rsc-modal .modal-body .form-group { margin-bottom: .7rem; }
+.rsc-modal .rsc-checks .shiny-options-group { display: flex; gap: 14px; }
+.navbar .rs-brand-tag { font-weight: 800; font-size: .68rem; letter-spacing: .08em; text-transform: uppercase; color: #1a1206; background: #f5a524; border-radius: 6px; padding: 2px 6px; }
+/* RockShiny's mode switch with the Creator page: the Creator tab shows only its icon on
+   narrower windows, and below 576 px (where the brand loses its subtitle) every tab does */
+@media (max-width: 1000px) {
+  .navbar .nav-link[data-value="creator"] { font-size: 0 !important; gap: 0 !important; padding: .32rem .8rem !important; }
+  .navbar .nav-link[data-value="creator"] > i, .navbar .nav-link[data-value="creator"] > svg { font-size: .85rem; }
+}
+@media (max-width: 575.98px) {
+  .navbar .navbar-nav .nav-link { font-size: 0 !important; gap: 0 !important; padding: .32rem .75rem !important; }
+  .navbar .navbar-nav .nav-link > i, .navbar .navbar-nav .nav-link > svg { font-size: .9rem; }
+}
+/* Long library labels (duplicates carry their file name) stay on one line. */
+.rsc-sidebar .selectize-control.single .selectize-input > .item { display: block; max-width: calc(100% - 14px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rsc-helprow { display: flex; gap: 6px; margin: 0.4rem 0 0.6rem; }
+.rsc-helprow .btn { flex: 1; margin: 0; justify-content: center; }
+.rsc-songbtns { display: flex; gap: 6px; flex-wrap: wrap; }
+.rsc-songbtns .btn { margin-top: -.45rem; }

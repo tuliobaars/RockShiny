@@ -1,0 +1,70 @@
+/* RockShiny Creator as one offline page (creator_build_html()): the app chrome
+   around the studio, after the RockShiny app's navbar and sidebars (app.css). */
+html, body { height: 100%; margin: 0; }
+body.rscp { display: flex; flex-direction: column; color: #e8eaf1; font: 14px/1.4 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: radial-gradient(ellipse at 70% -10%, #1a2035 0%, #0b0d13 55%) fixed #0b0d13; }
+.rscp-bar { flex: none; display: flex; align-items: center; gap: 18px; padding: 0 16px; height: 56px; border-bottom: 1px solid rgba(255,255,255,.06); background: rgba(11,13,19,.6); }
+.rscp-brand { display: flex; align-items: center; gap: 10px; }
+.rscp-logo { width: 28px; height: 28px; filter: drop-shadow(0 2px 6px rgba(245,165,36,.35)); }
+.rscp-name { font-weight: 800; letter-spacing: -0.02em; font-size: 1.15rem; }
+.rscp-tag { font-weight: 800; font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: #1a1206; background: #f5a524; border-radius: 6px; padding: 2px 6px; }
+.rscp-sub { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: rgba(232,234,241,.45); margin-top: 3px; }
+.rscp-pill { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,.045); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); }
+.rscp-pill span { padding: .32rem .95rem; border-radius: 8px; font-weight: 650; font-size: .85rem; color: rgba(232,234,241,.62); }
+.rscp-pill span.is-on { color: #1a1206; background: #f5a524; box-shadow: 0 0 16px rgba(245,165,36,.3); }
+.rscp-spacer { flex: 1; }
+.rscp-help { height: 28px; padding: 0 12px; margin-right: 8px; border-radius: 999px; border: 1px solid rgba(245,165,36,.4); background: rgba(245,165,36,.1);
+  color: #ffc46b; font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; }
+.rscp-help:hover { background: rgba(245,165,36,.2); }
+.rscp-offline { font-size: 11.5px; font-weight: 700; color: #8fe39f; background: rgba(70,200,120,.12); padding: 3px 10px; border-radius: 999px; }
+.rscp-main { flex: 1; min-height: 0; display: flex; }
+.rscp-side { flex: none; width: 320px; overflow-y: auto; padding: 16px 16px 24px; background: rgba(16,19,27,.85); border-right: 1px solid rgba(255,255,255,.06); box-sizing: border-box; }
+.rscp-stage { flex: 1; min-width: 0; padding: 14px; display: flex; }
+.rscp-stage > .rsc-host { flex: 1; }
+/* sidebar: accordion sections like the app's (.rs-accordion) */
+.rscp-sec { border-bottom: 1px solid rgba(255,255,255,.06); }
+.rscp-sec > summary { list-style: none; cursor: pointer; padding: .65rem 0; font-weight: 700; font-size: .84rem; letter-spacing: .01em; display: flex; align-items: center; gap: 8px; }
+.rscp-sec > summary::-webkit-details-marker { display: none; }
+.rscp-sec > summary svg { width: 15px; height: 15px; fill: rgba(232,234,241,.55); }
+.rscp-sec[open] > summary { color: #f5a524; }
+.rscp-sec[open] > summary svg { fill: #f5a524; }
+.rscp-sec > summary::after { content: ""; margin-left: auto; width: 8px; height: 8px; border-right: 2px solid rgba(232,234,241,.4); border-bottom: 2px solid rgba(232,234,241,.4); transform: rotate(45deg); transition: transform .2s; }
+.rscp-sec[open] > summary::after { transform: rotate(-135deg); }
+.rscp-body { padding: .2rem 0 1rem; }
+.rscp-label { display: block; font-size: .78rem; font-weight: 600; color: rgba(232,234,241,.72); margin-bottom: .3rem; }
+.rscp-fieldset { margin-bottom: .85rem; }
+.rscp-input, .rscp-select { width: 100%; box-sizing: border-box; height: 34px; border-radius: .55rem; border: 1px solid rgba(255,255,255,.10); background: #141824; color: #e8eaf1; font: inherit; font-size: 13px; padding: 0 10px; }
+.rscp-input:focus, .rscp-select:focus { outline: none; border-color: rgba(245,165,36,.6); }
+.rscp-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rscp-checks { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 13px; }
+.rscp-checks label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.rscp-checks input { accent-color: #f5a524; }
+.rscp-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: .55rem; border: 1px solid rgba(255,255,255,.12);
+  background: #1a1f2e; color: #e8eaf1; font: 650 13px/1 inherit; font-family: inherit; cursor: pointer; width: 100%; margin-bottom: 8px; }
+.rscp-btn:hover { background: #222839; }
+.rscp-btn:disabled { opacity: .45; cursor: default; }
+.rscp-btn.is-primary { background: #f5a524; border-color: #f5a524; color: #1a1206; box-shadow: 0 0 16px rgba(245,165,36,.25); }
+.rscp-btn.is-primary:hover { background: #ffb739; }
+.rscp-btn svg { width: 16px; height: 16px; fill: currentColor; }
+.rscp-seg { display: flex; gap: 3px; padding: 3px; border-radius: 10px; background: rgba(255,255,255,.045); box-shadow: inset 0 0 0 1px rgba(255,255,255,.07); margin-bottom: 10px; }
+.rscp-seg button { flex: 1; height: 30px; border: 0; border-radius: 7px; background: transparent; color: rgba(232,234,241,.62); font: 650 12.5px/1 inherit; font-family: inherit; cursor: pointer; }
+.rscp-seg button.is-on { background: #f5a524; color: #1a1206; }
+.rscp-hint { font-size: .76rem; line-height: 1.45; color: rgba(232,234,241,.5); margin: -.2rem 0 .75rem; }
+.rscp-hint code { color: #ffc46b; }
+.rscp-report { font-size: 12px; line-height: 1.5; padding: 8px 10px; border-radius: 8px; background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); margin-bottom: 10px; }
+.rscp-report.is-ok { color: #bff0c8; box-shadow: inset 0 0 0 1px rgba(70,200,120,.3); }
+.rscp-report.is-error { color: #ffc2ba; box-shadow: inset 0 0 0 1px rgba(255,110,95,.35); }
+.rscp-report b { color: #fff; }
+/* the RockShiny dropzone look (inst/dropzone/dropzone.css) */
+.rscp-drop { display: flex; align-items: center; gap: 12px; padding: 14px; margin-bottom: 12px; border: 1.5px dashed rgba(255,255,255,.18); border-radius: 12px; cursor: pointer; background: rgba(255,255,255,.02); transition: border-color .15s, background .15s; }
+.rscp-drop:hover, .rscp-drop.is-over { border-color: rgba(245,165,36,.6); background: rgba(245,165,36,.06); }
+.rscp-drop-icon { flex: none; width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: rgba(245,165,36,.12); }
+.rscp-drop-icon svg { width: 20px; height: 20px; fill: #f5a524; }
+.rscp-drop strong { display: block; font-weight: 650; }
+.rscp-drop span { font-size: .8rem; opacity: .6; }
+.rscp-keys { display: flex; flex-wrap: wrap; gap: 8px 14px; font-size: .74rem; color: rgba(232,234,241,.5); padding-top: 10px; }
+.rscp-keys span { display: inline-flex; gap: 4px; align-items: center; }
+kbd { font-size: .7rem; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.08); color: #e8eaf1; box-shadow: inset 0 -1px 0 rgba(255,255,255,.12); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+@media (max-width: 900px) { .rscp-side { width: 260px; } .rscp-sub, .rscp-offline { display: none; } }
+.rscp-check { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: rgba(232,234,241,.75); margin: 2px 0 10px; line-height: 1.35; }
+.rscp-check input { margin-top: 2px; accent-color: #f5a524; }

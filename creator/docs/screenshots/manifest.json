@@ -1,0 +1,87 @@
+[
+ {
+  "file": "01-studio.jpg",
+  "title": "The studio",
+  "caption": "Riding With The King open in the standalone app: the mix, the lead and rhythm charts drawn as tablature (chords framed and named, sustains, techniques), the lyrics syllable by syllable, sections and the beat grid on one timeline."
+ },
+ {
+  "file": "02-chart-editing.jpg",
+  "title": "Chart editing",
+  "caption": "A note selected: fret, string, sustain, bend, slide and every technique in the inspector (or from the keyboard: type the fret, H P B S V...). Draw, move, stretch, erase, quantize, copy and paste, with undo."
+ },
+ {
+  "file": "03-song.jpg",
+  "title": "Song details and charts",
+  "caption": "Title, artist, album, sorting, volumes and album art (any image, stored as the game's DDS); add a lead, rhythm, bass or combo chart in any tuning."
+ },
+ {
+  "file": "04-lyrics.jpg",
+  "title": "Lyrics, synced to the recording",
+  "caption": "Timed lyrics (LRCLIB, a .lrc file or pasted) become Rocksmith syllables. Auto-sync lays them over where the recording sings (here 1.6 s off, moved back): a voice model hears the singing, drawn as the band under the lyrics with a line under each sung phrase. Then tap-sync, stretch or drag any syllable."
+ },
+ {
+  "file": "05-stems.jpg",
+  "title": "Instrument stems",
+  "caption": "Vocals, guitar, bass, drums and the rest, separated using the song's own charts (a harmonic comb at every charted note) and lyrics; mute, solo and mix them, download each as WAV or keep them next to the song. Here: the vocals muted to sing along."
+ },
+ {
+  "file": "06-beats.jpg",
+  "title": "Beats and tempo",
+  "caption": "The beat grid the notes snap to and the game counts bars by: detected from the audio, or a tempo from any beat on; drag a beat, set bar starts, x2 / /2, shift the whole chart, metronome on playback."
+ },
+ {
+  "file": "07-new-song.jpg",
+  "title": "A new song from an audio file",
+  "caption": "Drop an mp3, ogg, wav, flac or m4a (or a Wwise .wem): the details come from the file name, the beat grid from the audio, and empty lead / rhythm / bass charts are ready to draw in."
+ },
+ {
+  "file": "08-save.jpg",
+  "title": "Save for PC or Mac, checked",
+  "caption": "The package is built in the browser (unchanged files byte for byte, edited charts recompiled), saved into the library and read back with RockShiny's own parsers: every chart's XML and SNG must agree."
+ },
+ {
+  "file": "09-in-rockshiny.jpg",
+  "title": "A page of RockShiny",
+  "caption": "The same module plugged into the RockShiny app: Home | Instrument | Karaoke | Creator. A song saved here opens at once in the Instrument or Karaoke mode (Play it / Sing it)."
+ },
+ {
+  "file": "10-offline.jpg",
+  "title": "One offline HTML file",
+  "caption": "RockShinyCreator.html: the whole studio in one file that opens from disk with no server and no network. .psarc files are read, decoded (Wwise audio included), edited and written in the page."
+ },
+ {
+  "file": "11-levels.jpg",
+  "title": "Difficulty levels, kept and edited",
+  "caption": "Get Lucky's own difficulty levels, kept when the song is edited. The lead at level 1 of 0-7 (what a beginner plays), with the notes of the full chart it leaves out as dashed ghosts; the bonus lead below plays the full chart. Pick a level, edit it like any chart, add or remove a level for one part or everywhere; PgUp / PgDn step through the levels."
+ },
+ {
+  "file": "12-auto-levels.jpg",
+  "title": "Easier levels, created automatically",
+  "caption": "Sultans of Swing has no levels: 'Create easier levels' makes them from the full chart, as chart authors do: the strongest beats first, chords on fewer strings at easy levels, more levels for busy parts. Here the rhythm part at level 2, the rest of the full chart as dashed ghosts. Saved, RockShiny's difficulty slider uses the levels."
+ },
+ {
+  "file": "13-help.jpg",
+  "title": "Help built in",
+  "caption": "The Help dialog (the ? button, the ? key, or Help in the sidebar): start here, what the Creator can do, what it can't do (drafts by ear are rough, stems and automatic levels are helpers, not studio-grade...), how difficulty levels work, and every shortcut."
+ },
+ {
+  "file": "14-tour.jpg",
+  "title": "A guided tour",
+  "caption": "Take the tour: a spotlight moves over each part of the studio and of its page (open, the library, save) with a card that explains it; arrow keys to step, Esc to leave. Here: the difficulty levels."
+ },
+ {
+  "file": "15-voice-sync.jpg",
+  "title": "Lyrics over the voice",
+  "caption": "Show the voice: where someone sings, as the band under the lyrics (how sure the voice model is) and a line under each sung phrase; the gaps are the silences. Sync each line fits lyrics of another take (here 0.4 % slower and every line off on its own) line by line onto the singing."
+ },
+ {
+  "file": "16-draft.jpg",
+  "title": "A chart drafted by ear",
+  "caption": "Fill this chart by ear: Draft the chords listens to the recording over the loop range and writes a chord on every beat, in shapes for the chart's tuning (a bass chart gets the chords' roots). A rough start, about half the chords right on the sample songs: listen with the headphones button and fix the rest."
+ },
+ {
+  "file": "17-tuner.jpg",
+  "title": "Play it in with the tuner",
+  "caption": "The tuner listens to your guitar or bass: the note and how many cents off, or the chord of each strum. In Step mode each note goes in at the playhead, on the string and fret nearest your hand, and the playhead moves on; Record writes what you play along with the song. Here the demo song, Night Drive, which the Creator makes from scratch."
+ }
+]

@@ -1,0 +1,62 @@
+<!doctype html>
+<!-- RockShiny karaoke: standalone page written by karaoke_export_html(). Runs
+     offline in any modern browser; no server, no R. Same player as the app. -->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="RockShiny karaoke_export_html()">
+  <title>{{TITLE}}</title>
+  {{STYLE}}
+</head>
+<body class="rs-kpage">
+  <header class="rs-kp-bar">
+    <div class="rs-kp-brand">
+      <svg viewBox="0 0 32 32" class="rs-kp-logo" aria-hidden="true"><defs><linearGradient id="rsg" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#ffc46b"/><stop offset="1" stop-color="#f08a00"/></linearGradient></defs>
+        <path fill="url(#rsg)" d="M16 2C9 2 4 5 4 10c0 8 7 17 12 20 5-3 12-12 12-20 0-5-5-8-12-8z"/>
+        <path fill="#1a1206" d="M13 9h6v2h-2v9.3a3 3 0 1 1-2-2.8V11h-2z"/></svg>
+      <span class="rs-kp-name">RockShiny</span><span class="rs-kp-sub">karaoke</span>
+    </div>
+    <label class="rs-kp-field rs-kp-song"><span>Song</span><select id="rs-kp-song"></select></label>
+    <input type="search" id="rs-kp-find" class="rs-kp-find" placeholder="Search songs&hellip;" aria-label="Search songs" autocomplete="off">
+    <button type="button" class="rs-kp-btn rs-kp-icon" id="rs-kp-shuffle" title="Shuffle: another song, picked at random">
+      <svg viewBox="0 0 24 24"><path d="M17 3l4 4-4 4V8h-2.6l-3 3.9-1.3-1.6L13.4 6H17zM3 6h4.6l8.8 11H17v-3l4 4-4 4v-3h-1.6L6.6 8H3zm0 10h3.6l2-2.6 1.3 1.6L7.6 18H3z"/></svg>
+    </button>
+    <div class="rs-kp-spacer"></div>
+    <div class="rs-kp-seg" role="group" aria-label="View">
+      <button type="button" data-view="stage" title="Big lines, one at a time">Stage</button>
+      <button type="button" data-view="sheet" title="The whole lyric sheet, scrolling">Sheet</button>
+    </div>
+    <div class="rs-kp-seg" role="group" aria-label="Text size">
+      <button type="button" id="rs-kp-smaller" title="Smaller text">A&minus;</button>
+      <button type="button" id="rs-kp-bigger" title="Bigger text">A+</button>
+    </div>
+    <div class="rs-kp-seg rs-kp-offset" role="group" aria-label="Lyrics timing"
+         title="Lyrics timing: + highlights later, &minus; earlier (Shift = 100 ms steps; double-click the value to reset)">
+      <button type="button" id="rs-kp-earlier">&minus;</button>
+      <span id="rs-kp-offset">0 ms</span>
+      <button type="button" id="rs-kp-later">+</button>
+    </div>
+    <label class="rs-kp-field"><span>Speed</span>
+      <select id="rs-kp-speed"><option value="1">100%</option><option value="0.9">90%</option><option value="0.8">80%</option><option value="0.75">75%</option></select>
+    </label>
+    <label class="rs-kp-btn" title="Load audio: play along with your own copy of the song (any audio file the browser plays)">
+      Audio&hellip;<input type="file" id="rs-kp-audio" accept="audio/*,video/*,.ogg,.opus,.m4a,.mp3,.flac,.wav" hidden>
+    </label>
+    <label class="rs-kp-btn" title="Load lyrics: a .lrc file (synced lyrics) for this song; it is synced to the audio automatically">
+      Lyrics&hellip;<input type="file" id="rs-kp-lrc" accept=".lrc,.txt,text/plain" hidden>
+    </label>
+    <button type="button" class="rs-kp-btn rs-kp-icon" id="rs-kp-full" title="Full screen (F)">
+      <svg viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4zm10 0h6v6h-2V6h-4zM4 14h2v4h4v2H4zm14 0h2v6h-6v-2h4z"/></svg>
+    </button>
+  </header>
+  <main class="rs-kp-main"><div id="rs-karaoke" class="rs-karaoke" tabindex="0"></div></main>
+  <footer class="rs-kp-keys"><span><kbd>Space</kbd> play / pause</span><span><kbd>&larr;</kbd><kbd>&rarr;</kbd> &plusmn;5 s</span>
+    <span><kbd>&uarr;</kbd><kbd>&darr;</kbd> previous / next line</span><span><kbd>Home</kbd> restart</span><span><kbd>F</kbd> full screen</span>
+    <span class="rs-kp-hint">Click a line to sing from there.</span></footer>
+  {{DATA}}
+  {{AUDIO}}
+  {{SCRIPTS}}
+</body>
+</html>

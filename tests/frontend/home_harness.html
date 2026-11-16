@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- Home screen harness: inst/home/home.js with a catalog made from a song folder
+     (check_home.py writes fixtures/home_<name>.json and fixtures/art/) and a small
+     stand-in for the R side (R/mod_home.R): playlists, genres and recently played
+     are kept here the way R keeps them, so user actions round-trip.
+     /tests/frontend/home_harness.html?catalog=home_songs -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>RockShiny home harness</title>
+  <link rel="stylesheet" href="../../inst/app/app.css">
+  <link rel="stylesheet" href="../../inst/home/home.css">
+  <script src="../../inst/highway/dds.js"></script>
+  <script src="../../inst/home/home.js"></script>
+  <style>html, body { height: 100%; margin: 0; background: radial-gradient(ellipse at 70% -10%, #1a2035 0%, #0b0d13 55%) fixed #0b0d13; }
+    #home { height: 100vh; }</style>
+</head>
+<body>
+  <div id="home"></div>
+  <script>
+    const q = new URLSearchParams(location.search);
+    window.__actions = [];
+    (async () => {
+      const data = await (await fetch(`fixtures/${q.get("catalog") || "home_songs"}.json`)).json();
+      const cat = data.catalog;
+      const user = { playlists: [], recent: [], artistGenres: {}, songGenres: {} };
+      const key = (a) => RSHome.artistKey(a);
+      // the R side, in miniature (mod_home_server()'s action handler)
+      const mock = {
+        playlist_new(a) { const id = "pl" + Math.random().toString(16).slice(2, 10);
+          user.playlists.push({ id, name: a.name || `My playlist #${user.playlists.length + 1}`, songs: (a.ids || []).slice(), missing: [] });
+          return { created: { token: a.token, id } }; },
+        playlist_rename(a) { const p = user.playlists.find((x) => x.id === a.pid); if (p) p.name = a.name; },
+        playlist_delete(a) { user.playlists = user.playlists.filter((x) => x.id !== a.pid); },
+        playlist_add(a) { const p = user.playlists.find((x) => x.id === a.pid); if (p) p.songs.push(...a.ids); },
+        playlist_remove(a) { const p = user.playlists.find((x) => x.id === a.pid); if (p) p.songs.splice(a.index - 1, 1); },
+        playlist_move(a) { const p = user.playlists.find((x) => x.id === a.pid); if (p) { const [s] = p.songs.splice(a.from - 1, 1); p.songs.splice(a.to - 1, 0, s); } },
+        genre_set(a) { if (a.genre) user.artistGenres[key(a.artist)] = a.genre; else delete user.artistGenres[key(a.artist)]; },
+        play(a) { user.recent.unshift({ id: a.ids[a.start], mode: a.mode }); },
+      };
+      const t0 = performance.now();
+      window.home = new RSHome.Home(document.getElementById("home"), {
+        action: (a) => {
+          window.__actions.push(a);
+          const r = mock[a.op] ? mock[a.op](a) : null;
+          setTimeout(() => home.setUser(Object.assign(JSON.parse(JSON.stringify(user)), r || {})), 20);   // R answers
+        },
+      });
+      home.load({ catalog: cat, user, artUrl: "fixtures/art/{id}-{size}.dds", status: { pending: 0, total: cat.id.length } });
+      window.__loadMs = performance.now() - t0;
+      window.__user = user;
+      window.__ready = true;
+    })();
+  </script>
+</body>
+</html>

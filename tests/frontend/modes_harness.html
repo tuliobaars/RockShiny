@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- Both players on one page, as in the app's Instrument | Karaoke modes (one
+     of them hidden like an inactive bslib tab), behind the Shiny stub. -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>RockShiny two-mode harness</title>
+  <script>window.$ = () => ({ find: () => [] });</script>
+  <script>
+    window.__inputs = [];
+    window.Shiny = {
+      OutputBinding: function () {},
+      outputBindings: { register(b, name) { (window.__bindings = window.__bindings || {})[name] = b; } },
+      addCustomMessageHandler(type, fn) { (window.__handlers = window.__handlers || {})[type] = fn; },
+      setInputValue(name, value) { window.__inputs.push({ name, value, at: performance.now() }); },
+    };
+  </script>
+  <link rel="stylesheet" href="../../inst/highway/highway.css">
+  <link rel="stylesheet" href="../../inst/karaoke/karaoke.css">
+  <script src="../../inst/highway/clock.js"></script>
+  <script src="../../inst/highway/dds.js"></script>
+  <script src="../../inst/highway/renderer.js"></script>
+  <script src="../../inst/highway/renderer-dom.js"></script>
+  <script src="../../inst/highway/renderer-lanes.js"></script>
+  <script src="../../inst/highway/overlays.js"></script>
+  <script src="../../inst/highway/input.js"></script>
+  <script src="../../inst/highway/mic.js"></script>
+  <script src="../../inst/highway/guide.js"></script>
+  <script src="../../inst/highway/binding.js"></script>
+  <script src="../../inst/karaoke/karaoke.js"></script>
+  <script src="../../inst/karaoke/karaoke-sync.js"></script>
+  <script src="../../inst/karaoke/karaoke-shiny.js"></script>
+  <style>body { margin: 0; background: #000; } .pane { width: 100vw; height: 100vh; } .pane.is-hidden { display: none; }</style>
+</head>
+<body>
+  <div class="pane" id="pane-instrument"><div id="hw" class="rs-highway" tabindex="0" style="width:100%;height:100%"></div></div>
+  <div class="pane is-hidden" id="pane-karaoke"><div id="kk" class="rs-karaoke" tabindex="0" style="width:100%;height:100%"></div></div>
+  <script>
+    window.modes = {
+      show(mode) {
+        document.getElementById("pane-instrument").classList.toggle("is-hidden", mode !== "instrument");
+        document.getElementById("pane-karaoke").classList.toggle("is-hidden", mode !== "karaoke");
+      },
+      hw() { return RSHighway.controllers.get("hw"); },
+      kk() { return RSKaraoke.players.get("kk"); },
+    };
+    (async () => {
+      const chart = await (await fetch("fixtures/modes_sultans_lead.json")).text();
+      window.__bindings["rockshiny.highway"].renderValue(document.getElementById("hw"), { chart, options: {} });
+      const song = await (await fetch("fixtures/karaoke_sultans.json")).text();
+      window.__bindings["rockshiny.karaoke"].renderValue(document.getElementById("kk"), { song, options: {} });
+      window.__ready = true;
+    })();
+  </script>
+</body>
+</html>

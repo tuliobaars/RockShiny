@@ -1,0 +1,48 @@
+/* standalone karaoke page (karaoke_export_html()): the app chrome around the player */
+html, body { height: 100%; margin: 0; }
+body.rs-kpage { display: flex; flex-direction: column; color: #e8eaf1; font: 14px/1.4 Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: radial-gradient(ellipse at 70% -10%, #1a2035 0%, #0b0d13 55%) fixed #0b0d13; }
+.rs-kp-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,.06); background: rgba(11,13,19,.6); }
+.rs-kp-brand { display: flex; align-items: center; gap: 10px; margin-right: 4px; }
+.rs-kp-logo { width: 28px; height: 28px; filter: drop-shadow(0 2px 6px rgba(245,165,36,.35)); }
+.rs-kp-name { font-weight: 800; letter-spacing: -0.02em; font-size: 1.15rem; }
+.rs-kp-sub { font-size: .72rem; text-transform: uppercase; letter-spacing: .12em; color: rgba(232,234,241,.45); margin-top: 3px; }
+.rs-kp-spacer { flex: 1; }
+.rs-kp-field { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 600; color: rgba(232,234,241,.6); }
+.rs-kp-field select, .rs-kp-seg, .rs-kp-btn { height: 32px; border-radius: 9px; border: 1px solid rgba(255,255,255,.1);
+  background: #141824; color: #e8eaf1; font: 600 12.5px/1 inherit; font-family: inherit; }
+.rs-kp-field select { padding: 0 8px; }
+.rs-kp-song select { width: min(24vw, 300px); }
+.rs-kp-seg { display: inline-flex; align-items: stretch; overflow: hidden; }
+.rs-kp-seg button { border: 0; background: transparent; color: inherit; font: inherit; padding: 0 11px; cursor: pointer; }
+.rs-kp-seg button + button, .rs-kp-seg span + button { border-left: 1px solid rgba(255,255,255,.08); }
+.rs-kp-seg button:hover, .rs-kp-btn:hover { background: rgba(255,255,255,.07); }
+.rs-kp-seg button.is-on { background: #f5a524; color: #1a1206; }
+.rs-kp-offset span { display: inline-flex; align-items: center; padding: 0 10px; min-width: 62px; justify-content: center;
+  font-variant-numeric: tabular-nums; border-left: 1px solid rgba(255,255,255,.08); cursor: default; }
+.rs-kp-btn { display: inline-flex; align-items: center; gap: 6px; padding: 0 12px; cursor: pointer; }
+.rs-kp-icon { width: 34px; padding: 0; justify-content: center; }
+.rs-kp-icon svg { width: 17px; height: 17px; fill: currentColor; }
+.rs-kp-main { flex: 1; min-height: 0; padding: 12px 14px 6px; }
+.rs-kp-main .rs-karaoke { width: 100%; height: 100%; }
+.rs-karaoke:fullscreen { border-radius: 0; }
+.rs-kp-keys { flex: none; display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 4px 18px 10px; font-size: 11.5px; color: rgba(232,234,241,.45); }
+.rs-kp-keys span { display: inline-flex; gap: 4px; align-items: center; }
+.rs-kp-hint { margin-left: auto; }
+kbd { font-size: .7rem; padding: 1px 5px; border-radius: 4px; background: rgba(255,255,255,.08); color: #e8eaf1;
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,.12); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+body.is-single .rs-kp-song { display: none; }
+.rs-kp-find { display: none; height: 32px; width: min(13vw, 170px); padding: 0 10px; border-radius: 9px; border: 1px solid rgba(255,255,255,.1);
+  background: #141824; color: #e8eaf1; font: 600 12.5px/1 inherit; font-family: inherit; }
+.rs-kp-find:focus { outline: none; border-color: rgba(245,165,36,.6); }
+body.has-find .rs-kp-find { display: inline-block; }
+body.has-find .rs-kp-song > span { display: none; }
+body.has-find .rs-kp-song select { width: min(20vw, 260px); }
+@media (max-width: 1600px) { body.has-find .rs-kp-sub, body.has-find .rs-kp-field > span { display: none; } }
+@media (max-width: 720px) { .rs-kp-keys { display: none; } .rs-kp-sub { display: none; } }
+@media (max-width: 1400px) {
+  .rs-kp-sub, .rs-kp-field > span { display: none; }
+  .rs-kp-song select { width: min(26vw, 280px); }
+}
+.rs-kp-icon svg { pointer-events: none; }

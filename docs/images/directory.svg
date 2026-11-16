@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" width="1200" height="800" font-family="Inter, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif">
+  <defs>
+    <radialGradient id="bg" cx="0.7" cy="0" r="1.1">
+      <stop offset="0" stop-color="#1a2035"/><stop offset="0.6" stop-color="#0b0d13"/>
+    </radialGradient>
+    <style>
+      .title { font-size: 26px; font-weight: 800; fill: #e8eaf1; letter-spacing: -0.02em; }
+      .sub { font-size: 14px; fill: #9aa3b8; }
+      .dir { font-size: 20px; font-weight: 800; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .what { font-size: 12.5px; fill: #9aa3b8; }
+      .card { fill: #141824; stroke: rgba(255,255,255,0.10); stroke-width: 1; }
+      .g { font-size: 13px; font-weight: 750; fill: #eef0f6; }
+      .f { font-size: 11.5px; fill: #aab2c5; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .new { fill: #f5a524; }
+    </style>
+  </defs>
+  <rect width="1200" height="800" fill="url(#bg)"/>
+  <text x="32" y="50" class="title">What's where</text>
+  <text x="32" y="74" class="sub">RockShiny is an R package and a Shiny app at the same time: <tspan font-family="ui-monospace, Menlo, monospace" fill="#e8eaf1">shiny::runApp()</tspan> starts <tspan font-family="ui-monospace, Menlo, monospace" fill="#e8eaf1">app.R</tspan>, which loads everything in <tspan font-family="ui-monospace, Menlo, monospace" fill="#e8eaf1">R/</tspan>.</text>
+  <text x="1168" y="74" class="sub" text-anchor="end"><tspan class="new">orange</tspan> = karaoke</text>
+
+  <!-- R/ -->
+  <rect x="28" y="100" width="372" height="672" rx="18" fill="rgba(59,130,246,0.07)" stroke="#3b82f6" stroke-opacity="0.55"/>
+  <text x="50" y="134" class="dir" fill="#7fb3ff">R/</text>
+  <text x="90" y="133" class="what">R code, run on the server</text>
+  <rect x="48" y="150" width="332" height="104" rx="12" class="card"/>
+  <text x="64" y="174" class="g">Reading songs</text>
+  <text x="64" y="196" class="f">psarc.R  crypto.R  utils.R</text>
+  <text x="64" y="214" class="f">arrangement_xml.R  sng.R</text>
+  <text x="64" y="232" class="f">vocals.R  midi.R</text>
+  <rect x="48" y="266" width="332" height="80" rx="12" class="card"/>
+  <text x="64" y="290" class="g">Building charts</text>
+  <text x="64" y="312" class="f">chart.R  instruments.R  song.R</text>
+  <text x="64" y="330" class="f">scores.R</text>
+  <rect x="48" y="358" width="332" height="80" rx="12" class="card"/>
+  <text x="64" y="382" class="g">Audio</text>
+  <text x="64" y="404" class="f">audio.R  audio_jobs.R  <tspan class="new">audio_feed.R</tspan></text>
+  <text x="64" y="422" class="f">(../inst/bin/rs-convert.sh runs the jobs)</text>
+  <rect x="48" y="450" width="332" height="80" rx="12" class="card" stroke="#f5a524" stroke-opacity="0.5"/>
+  <text x="64" y="474" class="g">Karaoke</text>
+  <text x="64" y="496" class="f new">karaoke.R  karaoke_export.R  lyrics_online.R</text>
+  <text x="64" y="514" class="f">lyrics (file, .lrc, LRCLIB), HTML page, catalogs</text>
+  <rect x="48" y="542" width="332" height="126" rx="12" class="card"/>
+  <text x="64" y="566" class="g">Shiny modules and outputs</text>
+  <text x="64" y="588" class="f">mod_import.R  mod_player.R</text>
+  <text x="64" y="606" class="f new">mod_karaoke.R  mod_library.R  mod_home.R</text>
+  <text x="64" y="624" class="f">highway_output.R  <tspan class="new">library.R  home.R</tspan></text>
+  <text x="64" y="642" class="f new">karaoke_output.R</text>
+  <rect x="48" y="680" width="332" height="72" rx="12" fill="rgba(255,255,255,0.03)" stroke="rgba(255,255,255,0.10)"/>
+  <text x="64" y="704" class="g">Project root</text>
+  <text x="64" y="726" class="f">app.R  DESCRIPTION  NAMESPACE</text>
+  <text x="64" y="742" class="f">renv.lock  README.md  LICENSE</text>
+
+  <!-- inst/ -->
+  <rect x="420" y="100" width="372" height="672" rx="18" fill="rgba(168,85,247,0.07)" stroke="#a855f7" stroke-opacity="0.55"/>
+  <text x="442" y="134" class="dir" fill="#c99bff">inst/</text>
+  <text x="512" y="133" class="what">files sent to the browser</text>
+  <rect x="440" y="150" width="332" height="196" rx="12" class="card"/>
+  <text x="456" y="174" class="g">highway/  the note highway</text>
+  <text x="456" y="196" class="f">clock.js  (the shared audio clock)</text>
+  <text x="456" y="214" class="f">binding.js  overlays.js</text>
+  <text x="456" y="232" class="f">renderer.js  renderer-dom.js</text>
+  <text x="456" y="250" class="f">renderer-lanes.js  dds.js</text>
+  <text x="456" y="268" class="f">input.js  mic.js  pitch-worklet.js</text>
+  <text x="456" y="286" class="f">guide.js  highway.css</text>
+  <text x="456" y="318" class="what">Canvas / SVG renderers, scoring, guide tones</text>
+  <rect x="440" y="358" width="332" height="150" rx="12" class="card" stroke="#f5a524" stroke-opacity="0.5"/>
+  <text x="456" y="382" class="g">karaoke/  the karaoke player</text>
+  <text x="456" y="404" class="f new">karaoke.js  karaoke-sync.js  karaoke.css</text>
+  <text x="456" y="422" class="f new">karaoke-shiny.js  (in Shiny)</text>
+  <text x="456" y="440" class="f new">karaoke-page.js  page.html  page.css</text>
+  <text x="456" y="458" class="f new">(in the standalone HTML page)</text>
+  <text x="456" y="490" class="what">one player, two hosts</text>
+  <rect x="440" y="520" width="332" height="232" rx="12" class="card"/>
+  <text x="456" y="544" class="g">Smaller pieces</text>
+  <text x="456" y="568" class="f">app/  <tspan class="new">home/</tspan></text>
+  <text x="600" y="568" class="what">look, loading; the home page</text>
+  <text x="456" y="592" class="f">dropzone/</text>
+  <text x="600" y="592" class="what">drag &amp; drop</text>
+  <text x="456" y="616" class="f">bin/rs-convert.sh</text>
+  <text x="600" y="616" class="what">audio jobs</text>
+  <text x="456" y="640" class="f">examples/</text>
+  <text x="600" y="640" class="what">Ode to Joy demo .mid</text>
+
+  <!-- right column -->
+  <rect x="812" y="100" width="360" height="330" rx="18" fill="rgba(34,197,94,0.06)" stroke="#22c55e" stroke-opacity="0.5"/>
+  <text x="834" y="134" class="dir" fill="#6ee7a0">tests/</text>
+  <text x="916" y="133" class="what">checks</text>
+  <text x="834" y="168" class="f">testthat/</text>
+  <text x="960" y="168" class="what">R tests (devtools::test)</text>
+  <text x="834" y="196" class="f">frontend/</text>
+  <text x="960" y="196" class="what">browser checks (Playwright),</text>
+  <text x="960" y="212" class="what">app shell (py-shiny)</text>
+  <text x="834" y="236" class="f">reference/</text>
+  <text x="960" y="236" class="what">the R code mirrored in</text>
+  <text x="960" y="252" class="what">Python; test fixtures</text>
+  <text x="834" y="276" class="f new">webr/</text>
+  <text x="960" y="276" class="what">run the R tests without R</text>
+  <text x="960" y="292" class="what">installed (WebAssembly)</text>
+  <text x="834" y="316" class="f">perf/</text>
+  <text x="960" y="316" class="what">renderer benchmark</text>
+  <text x="834" y="356" class="what">Songs missing from songs/ make</text>
+  <text x="834" y="374" class="what">their tests skip (they never fail).</text>
+
+  <rect x="812" y="446" width="360" height="100" rx="18" fill="rgba(20,184,166,0.07)" stroke="#14b8a6" stroke-opacity="0.55"/>
+  <text x="834" y="480" class="dir" fill="#5eead4">tools/</text>
+  <text x="834" y="508" class="f new">karaoke_export_html.py</text>
+  <text x="834" y="528" class="what">karaoke pages without R (exports/index.html)</text>
+
+  <rect x="812" y="562" width="360" height="120" rx="18" fill="rgba(148,163,184,0.06)" stroke="#94a3b8" stroke-opacity="0.45"/>
+  <text x="834" y="596" class="dir" fill="#cbd5e1">docs/</text>
+  <text x="834" y="622" class="f">GUIDE.md</text>
+  <text x="960" y="622" class="what">start here</text>
+  <text x="834" y="644" class="f">IMPLEMENTATION_GUIDE.md</text>
+  <text x="1030" y="644" class="what">full reference</text>
+  <text x="834" y="666" class="f">DESIGN.md  images/  features/</text>
+
+  <rect x="812" y="698" width="360" height="74" rx="18" fill="rgba(245,165,36,0.07)" stroke="#f5a524" stroke-opacity="0.5"/>
+  <text x="834" y="730" class="dir" fill="#f5a524">songs/</text>
+  <text x="834" y="756" class="what">your .psarc (+ .lrc) library; not in the package</text>
+</svg>
