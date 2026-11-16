@@ -468,14 +468,38 @@ def chart_json(chart, song_key=None, vocals=None, art=None):   # mirrors chart_j
     return out
 
 # ---------------------------------------------------------------- audio.R
+def bank_media_ids(data):                    # mirrors bank_media_ids(): the DIDX section's wem ids
+    out, o = [], 0
+    while o + 8 <= len(data):
+        tag, n = data[o:o + 4].replace(b"\0", b""), struct.unpack("<I", data[o + 4:o + 8])[0]
+        if tag == b"DIDX":
+            out += [struct.unpack("<I", data[o + 8 + k:o + 12 + k])[0] for k in range(0, n - 11, 12) if o + 12 + k <= len(data)]
+        o += 8 + n
+    return out
+
 def find_song_wem(arc):                      # mirrors find_song_wem()
     wems = arc.find(r"\.wem$")
-    ids = [int(w.split("/")[-1][:-4]) for w in wems]
-    for bnk in [b for b in arc.find(r"\.bnk$") if not b.endswith("_preview.bnk")]:
-        data = arc.read(bnk)
-        for w, i in zip(wems, ids):
-            if struct.pack("<I", i) in data: return w
-    return max(wems, key=lambda w: arc.by_name[w]["length"])
+    ids = [int(w.split("/")[-1][:-4]) if w.split("/")[-1][:-4].isdigit() else None for w in wems]
+    size = {w: arc.by_name[w]["length"] for w in wems}
+    banks = arc.find(r"\.bnk$")
+    def refs(names):
+        hit = [False] * len(wems)
+        for b in names:
+            data = arc.read(b)
+            didx = set(bank_media_ids(data))
+            h = [i is not None and i in didx for i in ids]
+            if not any(h):
+                h = [i is not None and struct.pack("<I", i) in data for i in ids]
+            hit = [x or y for x, y in zip(hit, h)]
+        return hit
+    song_banks = [b for b in banks if not b.endswith("_preview.bnk")]
+    prev_banks = [b for b in banks if b.endswith("_preview.bnk")]
+    cand = refs(song_banks)
+    if not any(cand): cand = [True] * len(wems)
+    if sum(cand) > 1 and prev_banks:
+        keep = [c and not p for c, p in zip(cand, refs(prev_banks))]
+        if any(keep): cand = keep
+    return max((w for w, c in zip(wems, cand) if c), key=lambda w: size[w])
 
 if __name__ == "__main__":
     arc = Psarc(sys.argv[1])

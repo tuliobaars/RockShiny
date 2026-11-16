@@ -117,7 +117,7 @@ mod_home_queue_ui <- function(id, where) {
 
 #' @param lib reactive rs_library (mod_library_server()).
 #' @param ended named list of reactives: the players' `<id>_ended` inputs
-#'   (list(instrument = reactive(input[["player-highway_ended"]]), karaoke = ...)).
+#'   (`list(instrument = reactive(input[["player-highway_ended"]]), karaoke = ...)`).
 #' @return list(request = reactive: list(mode, path, name, nonce) of the song to
 #'   open; record = function(path, mode) for recently played; go = function(route)).
 #' @noRd

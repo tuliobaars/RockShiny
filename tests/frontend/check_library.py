@@ -19,7 +19,7 @@ Without a big library folder the checks run on songs/ (4 songs).
    the same bslib and shiny.js): the status line, a song list of the whole
    library (grouped like karaoke_groups()), search in it, and the folder dialog
 4. the small-library page is unchanged: songs/ as one songbook with embedded
-   audio (the default build), song switching, settings kept over a reload
+   audio (up to 12 songs; more: next to the page), song switching, settings kept over a reload
 """
 import asyncio, os, shutil, socket, subprocess, sys, tempfile, textwrap, time
 from playwright.async_api import async_playwright
@@ -91,7 +91,10 @@ async def catalog_static(b, cache):
     if webe:
         await pg.route("https://lrclib.net/**", lambda route: route.fulfill(status=404, body="[]", headers={"Access-Control-Allow-Origin": "*"}))
         a = await pg.evaluate(PICK, [q(webe), 10000])
-        await pg.wait_for_timeout(300)
+        try:                                                       # the lookup's answer replaces the first status line
+            await pg.wait_for_function("() => /online/.test(karaokePage.player.banner.textContent)", timeout=5000)
+        except Exception:
+            pass
         banner = await pg.evaluate("() => karaokePage.player.banner.textContent")
         check(a["loaded"] and a["title"] == webe["title"] and a["lyrics"] == "lookup" and "online" in banner,
               f"a song without lyrics in the file: loaded in {a['tSong']:.0f} ms, lyrics looked up by the page (mocked: none) -> '{banner[:60]}...'")
@@ -267,14 +270,15 @@ async def app_ui(b, cache, n_with):
                   text: bar.textContent.trim().replace(/\\s+/g, ' '), n: Object.keys(document.getElementById('library_instrument').selectize.options).filter(Boolean).length}; }""")
         check(g["inside"] and g["oneLink"] and g["ellipsis"] and not errs,
               f"status line fits the sidebar: '{g['text']}'; instrument list of {g['n']} songs filled {t_list:.1f} s after opening the page")
-        r = await pg.evaluate("""async () => { const s = document.getElementById('library_instrument').selectize;
+        big = os.path.realpath(LIB) != os.path.realpath(os.path.join(ROOT, "songs"))   # the generated big library (make_big_library.py)
+        r = await pg.evaluate("""async () => { const QUERY = '""" + ("ocean" if big else "the") + """', s = document.getElementById('library_instrument').selectize;
           let t0 = performance.now(); s.open(); await new Promise(r => requestAnimationFrame(() => r())); const tOpen = performance.now() - t0;
-          t0 = performance.now(); s.setTextboxValue('ocean'); s.refreshOptions(true); await new Promise(r => requestAnimationFrame(() => r()));
+          t0 = performance.now(); s.setTextboxValue(QUERY); s.refreshOptions(true); await new Promise(r => requestAnimationFrame(() => r()));
           const tSearch = performance.now() - t0, shown = s.$dropdown_content.find('.option').length;
           const first = s.$dropdown_content.find('.option').first().attr('data-value'); s.setValue(first); s.close();
           return {tOpen, tSearch, shown, value: s.getValue() === first}; }""")
-        check(r["value"] and r["tOpen"] < 1000 and r["tSearch"] < 300 and 0 < r["shown"] < g["n"],
-              f"the list opens in {r['tOpen']:.0f} ms, search 'ocean' -> {r['shown']} songs in {r['tSearch']:.0f} ms, pick works")
+        check(r["value"] and r["tOpen"] < 1000 and r["tSearch"] < 300 and (0 < r["shown"] < g["n"] or not big),
+              f"the list opens in {r['tOpen']:.0f} ms, search '{'ocean' if big else 'the'}' -> {r['shown']} songs in {r['tSearch']:.0f} ms, pick works")
         await pg.click("a[data-value=karaoke]")
         await pg.wait_for_function("() => { const s = document.getElementById('library_karaoke'); return s && s.selectize && Object.keys(s.selectize.options).length > 1; }", timeout=30000)
         k = await pg.evaluate("""() => { const s = document.getElementById('library_karaoke').selectize;
@@ -292,7 +296,8 @@ async def app_ui(b, cache, n_with):
         await pg.click("#apply"); await pg.wait_for_timeout(1500)
         after = await pg.evaluate("() => ({bar: document.querySelector('#bar_karaoke .rs-libbar-count').textContent, n: Object.keys(document.getElementById('library_karaoke').selectize.options).filter(Boolean).length,"
                                   " modal: !!document.querySelector('.modal.show')})")
-        check(upv == os.path.dirname(os.path.realpath(LIB)) and d["dirs"] >= 1 and d["fits"] and after["n"] == 4 and after["bar"].startswith("4 songs")
+        n_songs = len([f for f in os.listdir(songs) if f.lower().endswith(".psarc")])
+        check(upv == os.path.dirname(os.path.realpath(LIB)) and d["dirs"] >= 1 and d["fits"] and after["n"] == n_songs and after["bar"].startswith(f"{n_songs} songs")
               and not after["modal"] and not errs,
               f"folder dialog: '{d['msg']}', Up -> {upv}; another folder applied -> status '{after['bar']}', karaoke list {after['n']} songs")
         await pg.screenshot(path=os.path.join(tmp, "library.png"))
@@ -318,12 +323,15 @@ async def songbook(b, cache):
       document.getElementById('rs-kp-bigger').click(); out.scale = P.opts ? P.opts.textScale : null;
       return out; }""")
     await pg.reload(); await pg.wait_for_function("() => window.karaokePage && karaokePage.player.song", timeout=60000)
-    after = await pg.evaluate("() => ({song: karaokePage.player.song.songKey === karaokePage.songs[2].songKey, "
+    # every visit starts with a song picked at random (karaoke-page.js "shuffle"); the settings are kept
+    after = await pg.evaluate("() => ({song: !!(karaokePage.player.song && karaokePage.player.song.songKey), "
                               "scale: JSON.parse(localStorage.getItem('rs-karaoke-page')).opts.textScale})")
-    check(r["n"] >= 3 and r["groups"] == 0 and r["find"] == "none" and r["embedded"] >= 1 and r["switched"] and after["song"]
+    # up to 12 songs the audio is embedded; more go next to the page (index_files/)
+    check(r["n"] >= 3 and r["groups"] == 0 and r["find"] == "none" and (r["embedded"] >= 1) == (r["n"] <= 12) and r["switched"] and after["song"]
           and after["scale"] > 1 and not errs,
           f"songs/ as one page ({os.path.getsize(out) / 1e6:.0f} MB, {r['embedded']} songs with embedded audio): {r['n']} songs, no groups or search box; "
-          f"switching plays the new song; after a reload the last song and the text size ({after['scale']}) are back")
+          f"switching plays the new song ({r['switched']}); after a reload a song is up ({after['song']}) and the text size ({after['scale']}) are back"
+          + (f"; errors {errs[:2]}" if errs else ""))
     await pg.close()
     shutil.rmtree(tmp, ignore_errors=True)
 

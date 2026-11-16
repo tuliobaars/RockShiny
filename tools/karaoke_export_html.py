@@ -5,14 +5,23 @@ without R (e.g. a sandbox or a CI runner). Writes the same standalone karaoke
 page, byte for byte: same template and player (inst/karaoke), same song data
 (the Python mirror of R/karaoke.R and R/lyrics_online.R in tests/reference).
 
-  python3 tools/karaoke_export_html.py          # -> exports/index.html: every song in songs/
+  python3 tools/karaoke_export_html.py          # -> karaoke/index.html + karaoke/index_files/: songs/, audio as m4a
+  python3 tools/karaoke_export_html.py ~/Rocksmith/dlc -o karaoke/index.html --audio-format m4a
+  python3 tools/karaoke_export_html.py ~/Rocksmith/dlc -o karaoke/index.html --lyrics-only
   python3 tools/karaoke_export_html.py songs/Dire-Straits_Sultans-of-Swing_v443_m.psarc -o sultans.html
-  python3 tools/karaoke_export_html.py --library songs -o songbook.html --audio files
   python3 tools/karaoke_export_html.py SONG.psarc -o lyrics.html --audio none
 
-Big libraries (more than 50 songs; R: karaoke_export_library()) become a
-*catalog*: one small page listing the songs and one script per song, loaded
-when the song is picked -- from disk or any web server:
+A folder (R: karaoke_export_html("folder", ...)) gives a *standalone folder*:
+every .psarc in it (--recursive: subfolders too) in one page, with each song's
+audio next to it (<page>_files/<artist-title>.<ext>; up to 12 songs the audio is
+embedded instead). Nothing else is written: no library index, no catalog. Open
+the page from disk, or copy the page and its _files folder anywhere. Up to
+100 songs (a bigger library: --library, a catalog). Songs without lyrics in the
+file are looked up (below) -- or left out with --lyrics-only.
+
+Big libraries (more than 100 songs with --library; R: karaoke_export_library())
+become a *catalog*: one small page listing the songs and one script per song,
+loaded when the song is picked -- from disk or any web server:
 
   python3 tools/karaoke_export_html.py --library ~/dlc --recursive -o karaoke/index.html --jobs 4
   python3 tools/karaoke_export_html.py --library ~/dlc --audio none -o karaoke/index.html   # lyrics only: fast
@@ -229,33 +238,65 @@ def fill(html, key, value):             # karaoke_fill(): first occurrence, lite
     return html[:i] + value + html[i + len(key):]
 
 
-def export(songs, out, audio="embed", audio_format="auto", title=None, options=None, cache_dir=None):
+def audio_name(song, ext, used):                              # karaoke_audio_name(): slug, made unique
+    base = song.slug()
+    name, i = f"{base}.{ext}", 1
+    while name in used:
+        i += 1
+        name = f"{base}-{i}.{ext}"
+    return name
+
+
+def export(songs, out, audio="embed", audio_format="auto", title=None, options=None, cache_dir=None, jobs=1):
     files_dir = os.path.splitext(out)[0] + "_files"
-    payloads, blobs = [], []
+    payloads, blobs, used, missing = [], [], [], []
+    sources = [None] * len(songs)
+    if audio != "none":                                       # the audio conversions (the slow part), in parallel
+        def conv(song):
+            try:
+                return song_audio(song, audio_format, cache_dir)
+            except Exception as e:
+                return e
+        if jobs > 1 and len(songs) > 1:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(jobs) as pool:
+                sources = list(pool.map(conv, songs))
+        else:
+            sources = [conv(s) for s in songs]
     for i, song in enumerate(songs, 1):
         p = dict(song.payload)
-        if audio != "none":
-            try:
-                src, how = song_audio(song, audio_format, cache_dir)
-                ext = os.path.splitext(src)[1][1:].lower()
-                mime = AUDIO_MIME.get(ext, "application/octet-stream")
-                if audio == "embed":
-                    sid = f"rs-karaoke-audio-{i}"
-                    with open(src, "rb") as f:
-                        blobs.append(f'<script type="text/plain" id="{sid}">{base64.b64encode(f.read()).decode()}</script>')
-                    p["audio"] = {"embed": sid, "type": mime}
-                else:
-                    os.makedirs(files_dir, exist_ok=True)
-                    dest = os.path.join(files_dir, f"{song.slug()}.{ext}")
+        res = sources[i - 1]
+        if isinstance(res, Exception):
+            log(f"  warning: no audio for {song.title}: {res} (the page will offer 'Load audio...').")
+            missing.append(song.title)
+        elif res is not None:
+            src, how = res
+            ext = os.path.splitext(src)[1][1:].lower()
+            mime = AUDIO_MIME.get(ext, "application/octet-stream")
+            if audio == "embed":
+                sid = f"rs-karaoke-audio-{i}"
+                with open(src, "rb") as f:
+                    blobs.append(f'<script type="text/plain" id="{sid}">{base64.b64encode(f.read()).decode()}</script>')
+                p["audio"] = {"embed": sid, "type": mime}
+            else:
+                os.makedirs(files_dir, exist_ok=True)
+                dest = os.path.join(files_dir, audio_name(song, ext, used))
+                used.append(os.path.basename(dest))
+                if not (os.path.exists(dest) and os.path.getsize(dest) == os.path.getsize(src)
+                        and os.path.getmtime(dest) >= os.path.getmtime(src)):
                     shutil.copyfile(src, dest)
-                    p["audio"] = {"src": f"{os.path.basename(files_dir)}/{os.path.basename(dest)}", "type": mime}
-                log(f"  audio: {song.title}: {ext}, {os.path.getsize(src) / 1e6:.1f} MB ({how})")
-            except Exception as e:
-                log(f"  warning: no audio for {song.title}: {e} (the page will offer 'Load audio...').")
+                p["audio"] = {"src": f"{os.path.basename(files_dir)}/{os.path.basename(dest)}", "type": mime}
+            log(f"  audio: {song.title}: {ext}, {os.path.getsize(src) / 1e6:.1f} MB ({how})")
         payloads.append(to_json(p))
+    if audio == "files" and os.path.isdir(files_dir):        # the folder holds exactly this page's audio
+        for f in os.listdir(files_dir):
+            if os.path.splitext(f)[1][1:].lower() in AUDIO_MIME and f not in used:
+                os.remove(os.path.join(files_dir, f))
     if title is None:
         title = f"{songs[0].title} \u2014 karaoke" if len(songs) == 1 else "RockShiny karaoke"
-    return write_page(out, title, options, payloads, blobs)
+    out = write_page(out, title, options, payloads, blobs)
+    export.missing = missing
+    return out
 
 
 def write_page(out, title, options, payloads, blobs=()):
@@ -269,7 +310,8 @@ def write_page(out, title, options, payloads, blobs=()):
     html = fill(html, "{{DATA}}", '<script type="application/json" id="rs-karaoke-data">' + data.replace("<", "\\u003c") + "</script>")
     html = fill(html, "{{AUDIO}}", "\n".join(blobs))
     html = fill(html, "{{SCRIPTS}}", "\n".join(script(asset(*a)) for a in
-                (("highway", "clock.js"), ("highway", "dds.js"), ("karaoke", "karaoke.js"), ("karaoke", "karaoke-sync.js"), ("karaoke", "karaoke-page.js"))))
+                (("highway", "clock.js"), ("highway", "dds.js"), ("karaoke", "karaoke.js"), ("karaoke", "karaoke-sync.js"),
+                 ("karaoke", "karaoke-voice.js"), ("karaoke", "karaoke-sing.js"), ("karaoke", "karaoke-page.js"))))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     with open(out, "wb") as f:
         f.write(html.encode("utf-8"))
@@ -282,8 +324,9 @@ def write_page(out, title, options, payloads, blobs=()):
 #   <out>.html  <out>_files/songs/<id>.js  <out>_files/audio/<id>.<ext>
 # Works from disk (file://) and from any static server; --serve builds each song
 # (payload, audio) the first time it is requested instead of all of them up front.
-CATALOG_MIN = 50          # --library builds with more songs than this become catalogs (the app's
-                          # library threshold, R/library.R)
+CATALOG_MIN = 100         # --library builds with more songs than this become catalogs; a folder
+                          # (positional) is always one page, of at most PAGE_MAX songs
+PAGE_MAX = 100            # R: KARAOKE_PAGE_MAX
 EMBED_MAX = 12            # songs with embedded audio in one page: ~0.45 s each before the first
                           # note plays (tests/perf/embed_bench.py); R: KARAOKE_EMBED_MAX
 
@@ -479,13 +522,79 @@ def serve_catalog(out, entries, port, audio="files", audio_format="auto", cache=
         pass
 
 
+def folder_files(folder, recursive=False):
+    """Every .psarc of a folder (and its subfolders), sorted: no library index, no cache of the listing."""
+    out = []
+    for d, dirs, files in os.walk(folder):
+        dirs.sort()
+        out += [os.path.join(d, f) for f in files if f.lower().endswith(".psarc") and not f.startswith("._")]
+        if not recursive:
+            break
+    return sorted(out)
+
+
+def export_folder(folder, a, ap):
+    """A folder of .psarc files -> one page + <page>_files/ with every song's audio: a standalone folder.
+    Every file is listed (songs without lyrics anywhere are looked up by the page), or with --lyrics-only
+    only songs whose lyrics are in the file or in a .lrc next to it."""
+    t0 = time.time()
+    paths = folder_files(folder, a.recursive)
+    if not paths:
+        ap.exit(2, f"error: no .psarc files in {folder}" + ("" if a.recursive else " (add --recursive for subfolders)") + "\n")
+    if len(paths) > PAGE_MAX:
+        ap.exit(2, f"error: {len(paths)} songs are too many for one page (at most {PAGE_MAX}): use --library for a catalog\n")
+    cache = None if a.no_cache else (a.cache_dir or r_cache_root())
+    online = not a.no_online and not a.lyrics_only
+    allow_missing = not a.no_lookup_in_browser and not a.lyrics_only
+    songs, skipped = [], []
+    for p in paths:
+        try:
+            s = Song(p, online=online, cache=None if a.lyrics_only else cache, allow_missing=allow_missing)
+        except Exception as e:
+            skipped.append(f"{os.path.basename(p)} ({e})" if not a.lyrics_only else os.path.basename(p))
+            continue
+        ly = s.payload.get("lyrics")
+        if a.lyrics_only and ly and ly.get("source") != "file":
+            skipped.append(os.path.basename(p)); continue
+        songs.append(s)
+    if not songs:
+        ap.exit(2, "error: none of the songs has lyrics\n")
+    songs.sort(key=lambda s: f"{s.artist or ''} \u2014 {s.title}".lower())
+    out = a.output or os.path.join("karaoke", "index.html")
+    audio = a.audio or ("embed" if len(songs) <= EMBED_MAX else "files")      # R: audio = "auto"
+    if audio == "embed" and len(songs) > EMBED_MAX:
+        log(f"  note: {len(songs)} songs are too many to embed their audio in one page: the audio goes next to it")
+        audio = "files"
+    options = {k: v for k, v in (("view", a.view), ("textScale", a.text_size)) if v is not None}
+    n_file = sum(1 for s in songs if not s.payload.get("lyrics"))
+    log(f"{folder}: {len(paths)} .psarc file(s); {len(songs)} in the page ({n_file} with lyrics in the file"
+        + ("" if a.lyrics_only else f", {len(songs) - n_file} from a .lrc, the cache, LRCLIB or looked up by the page") + ")"
+        + (f"; left out ({'no lyrics in the file' if a.lyrics_only else 'errors'}): {len(skipped)}" if skipped else ""))
+    out = export(songs, out, audio=audio, audio_format=a.audio_format, title=a.title, options=options, cache_dir=cache,
+                 jobs=max(1, a.jobs))
+    missing = getattr(export, "missing", [])
+    files_dir = os.path.splitext(out)[0] + "_files"
+    size = sum(os.path.getsize(os.path.join(files_dir, f)) for f in os.listdir(files_dir)) if os.path.isdir(files_dir) else 0
+    log(f"wrote {out} ({os.path.getsize(out) / 1e6:.1f} MB, {len(songs)} songs)"
+        + (f" + {os.path.basename(files_dir)}/ ({len(songs) - len(missing)} audio files, {size / 1e6:.0f} MB)" if audio == "files" else "")
+        + f" in {time.time() - t0:.0f} s")
+    if missing:
+        log(f"  no audio for {len(missing)} song(s): {', '.join(missing)}")
+    if skipped and not a.lyrics_only:
+        log("  skipped: " + "; ".join(skipped))
+    return out
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Write a standalone RockShiny karaoke page (R: karaoke_export_html()). "
-                                 "Without arguments: every song in songs/ -> exports/index.html.")
-    ap.add_argument("songs", nargs="*", help=".psarc files (several make a songbook)")
+                                 "Without arguments: every song in songs/ -> karaoke/index.html (+ karaoke/index_files/).")
+    ap.add_argument("songs", nargs="*", help=".psarc files (several make a songbook), or a folder: every .psarc in it, "
+                    "one page with the audio next to it (a standalone folder; at most %d songs)" % PAGE_MAX)
+    ap.add_argument("--lyrics-only", action="store_true",
+                    help="only songs whose lyrics are in the file (or a .lrc next to it); nothing is looked up")
     ap.add_argument("--library", metavar="DIR", help="all songs in DIR that can be sung (like karaoke_choices())")
-    ap.add_argument("--recursive", action="store_true", help="--library: include subfolders")
-    ap.add_argument("-o", "--output", help="output .html (default: exports/index.html, or karaoke.html for given songs)")
+    ap.add_argument("--recursive", action="store_true", help="a folder or --library: include subfolders")
+    ap.add_argument("-o", "--output", help="output .html (default: karaoke/index.html for a folder or no argument, karaoke.html for given songs)")
     ap.add_argument("--no-online", action="store_true", help="do not look up missing lyrics on LRCLIB")
     ap.add_argument("--no-lookup-in-browser", action="store_true",
                     help="drop songs whose lyrics cannot be found now (default: the page looks them up when opened)")
@@ -498,7 +607,8 @@ def main(argv=None):
                     help="one page listing the songs, each song loaded when picked (automatic for --library "
                          "with more than %d songs; --single to prevent)" % CATALOG_MIN)
     ap.add_argument("--single", action="store_true", help="never make a catalog")
-    ap.add_argument("--jobs", type=int, default=1, help="catalog: songs built in parallel (audio conversion is the slow part)")
+    ap.add_argument("--jobs", type=int, default=max(1, min(4, (os.cpu_count() or 2) // 2)),
+                    help="songs whose audio is converted in parallel (the slow part; default: %(default)s)")
     ap.add_argument("--title", help="page title")
     ap.add_argument("--view", choices=["stage", "sheet"], help="initial view")
     ap.add_argument("--text-size", type=float, help="initial text size (1 = 100%%)")
@@ -509,9 +619,16 @@ def main(argv=None):
                          "not built up front: each song (lyrics, audio) is made the first time it is opened")
     a = ap.parse_args(argv)
 
-    if not a.songs and not a.library:                           # the default build: the whole library
-        a.library = os.path.join(ROOT, "songs")
-        a.output = a.output or os.path.join(ROOT, "exports", "index.html")
+    if not a.songs and not a.library:                           # the default build: karaoke/ from songs/
+        a.songs = [os.path.join(ROOT, "songs")]
+        a.output = a.output or os.path.join(ROOT, "karaoke", "index.html")
+        if a.audio_format == "auto":
+            a.audio_format = "m4a"                                  # plays in every browser, Safari included
+    folders = [x for x in a.songs if os.path.isdir(x)]
+    if folders:                                                 # a folder: every .psarc in it, no library index
+        if a.library or len(a.songs) > 1:
+            ap.error("give one folder, or .psarc files, or --library")
+        return export_folder(folders[0], a, ap)
     if a.library and not os.path.isdir(a.library):
         ap.error(f"{a.library}: no such folder")
     cache = None if a.no_cache else (a.cache_dir or r_cache_root())
@@ -570,7 +687,8 @@ def main(argv=None):
             "the audio goes next to it (--audio files)")
         audio = "files"
     log(f"{len(songs)} song(s): " + ", ".join(s.title + s.lyrics_note for s in songs))
-    out = export(songs, a.output, audio=audio, audio_format=a.audio_format, title=a.title, options=options, cache_dir=cache)
+    out = export(songs, a.output, audio=audio, audio_format=a.audio_format, title=a.title, options=options, cache_dir=cache,
+                 jobs=max(1, a.jobs))
     log(f"wrote {out} ({os.path.getsize(out) / 1e6:.1f} MB)")
     if a.serve:
         import functools, http.server

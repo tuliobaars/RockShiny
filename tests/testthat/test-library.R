@@ -17,6 +17,8 @@ test_that("library_guess(): artist and title from file names", {
 test_that("library_open(): scans a small library, writes the index, reuses it", {
   skip_if_no_songs()
   local_library()
+  # "small": not lazy, whatever the number of songs in songs/ (the default threshold is 50 files)
+  withr::local_options(list(rockshiny.library_lazy_threshold = max(50L, length(sample_songs()))))
   lib <- library_open(songs_dir())
   n <- length(sample_songs())
   expect_false(lib$lazy)
@@ -142,7 +144,7 @@ test_that("too many songs to embed their audio in one page", {
   skip_if_no_songs()
   local_library()
   k <- load_karaoke_song(need_song("Dire-Straits_Sultans-of-Swing_v443_m.psarc"), online = FALSE)
-  expect_error(karaoke_export_html(rep(list(k), KARAOKE_EMBED_MAX + 1L), tempfile(fileext = ".html")), "too many")
+  expect_error(karaoke_export_html(rep(list(k), KARAOKE_EMBED_MAX + 1L), tempfile(fileext = ".html"), audio = "embed"), "too many")
 })
 
 test_that("the app's library notices new files in its folder", {

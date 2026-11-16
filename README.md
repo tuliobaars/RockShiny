@@ -76,25 +76,34 @@ shiny::runApp()
 # karaoke without Shiny: a standalone page (one song, or a songbook)
 for (f in list.files("R", full.names = TRUE)) source(f)
 karaoke_export_html("songs/Dire-Straits_Sultans-of-Swing_v443_m.psarc", "sultans.html")
-karaoke_export_html(karaoke_choices("songs"), "songbook.html", audio = "files")
-karaoke_export_library("~/Music/Rocksmith", "karaoke/index.html")   # a big library: a catalog
+karaoke_export_html("songs", "karaoke/index.html", audio_format = "m4a")   # a folder: a standalone karaoke folder
+karaoke_export_html("songs", "karaoke/index.html", lyrics_only = TRUE)     # ...only the songs with lyrics in the file
+karaoke_export_library("~/Music/Rocksmith", "karaoke/index.html")   # a big library (over 100 songs): a catalog
 ```
 
-The same pages without R (byte-identical output). With no arguments it builds
-`exports/index.html`, every song with its audio (`--serve` to open it over HTTP).
-A build of the 39 sample songs with lyrics is in `exports/` (serve it for every
-feature: `python3 -m http.server -d exports`), plus `exports/sing-sampler.html`,
-6 songs that work opened from disk. Four carry their audio inside; Get Lucky and
-Sultans of Swing play the recordings already in `exports/index_files/` and
-`songbook_files/` (each big file is stored once). Opened from disk, those two play
-and scroll, but what reads the recording itself (turning the singer's voice down,
-scoring against the recording) needs the audio inside the page or a web server:
+**A standalone karaoke folder.** Give the exporter a folder of `.psarc` files and it
+writes one page with every song of the folder, and each song's audio next to it:
+`karaoke/index.html` + `karaoke/index_files/<artist-title>.m4a`. Nothing else is
+made (no library index, no catalog), up to 100 songs. Open `karaoke/index.html` from
+disk, or copy the `karaoke/` folder anywhere: it needs nothing outside itself. Songs
+without lyrics in the file are looked up (a `.lrc` next to the file, LRCLIB, or by the
+page when it opens); `lyrics_only = TRUE` / `--lyrics-only` lists only the songs whose
+lyrics are in the file. The same without R (byte-identical output); with no arguments
+it builds `karaoke/` from `songs/`:
 
 ```bash
 pip install wem2ogg                       # audio decoder (unless vgmstream-cli is installed)
-python3 tools/karaoke_export_html.py      # -> exports/index.html
-python3 tools/karaoke_export_html.py --library ~/Music/Rocksmith --serve   # big library: songs built when opened
+python3 tools/karaoke_export_html.py      # songs/ -> karaoke/index.html + karaoke/index_files/ (m4a)
+python3 tools/karaoke_export_html.py ~/Music/Rocksmith -o karaoke/index.html --audio-format m4a --lyrics-only
+python3 tools/karaoke_export_html.py --library ~/Music/Rocksmith --serve   # a big library: songs built when opened
 ```
+
+`karaoke/` in this folder is that build of the sample songs (18 songs, 160 MB of
+audio). Opened from disk everything plays; turning the singer's voice down and
+aligning lyrics found on the web to the recording read the audio's samples, which a
+page opened from disk may not do with files next to it: serve the folder for those
+(`python3 -m http.server -d karaoke`). `exports/sing-sampler.html` is the other
+kind: one file with 6 songs and their audio inside, everything from disk.
 
 Audio needs `vgmstream-cli` + `ffmpeg` on `PATH`. FFmpeg alone **cannot** decode
 `.wem`. The delivery format (Ogg Vorbis, AAC, Opus, FLAC or WAV) is negotiated

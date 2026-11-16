@@ -217,8 +217,8 @@ RockShiny/
 │                            # home_ref.py (mirror of home_catalog(), fixtures for the home checks)
 ├── tools/
 │   └── karaoke_export_html.py   # karaoke_export_html() / karaoke_export_library() in Python (no R
-│                                # needed); no arguments: exports/index.html with every song (not in
-│                                # git); big libraries: catalogs, --serve builds songs on request
+│                                # needed); a folder (or no arguments: songs/) -> karaoke/index.html +
+│                                # karaoke/index_files/; big libraries: catalogs, --serve builds on request
 ├── docs/
 │   ├── GUIDE.md             # the short guide
 │   ├── IMPLEMENTATION_GUIDE.md  # this reference
@@ -301,8 +301,8 @@ a pure-Python AES is used without it); for audio, `vgmstream-cli` on `PATH` or
 `pip install wem2ogg`, plus `ffmpeg`.
 
 ```bash
-python3 tools/karaoke_export_html.py            # every song in songs/ -> exports/index.html
-python3 tools/karaoke_export_html.py --serve    # ... and serve it at http://localhost:8000/index.html
+python3 tools/karaoke_export_html.py            # every song in songs/ -> karaoke/index.html (+ index_files/)
+python3 tools/karaoke_export_html.py ~/dlc -o karaoke/index.html --lyrics-only   # a folder, only songs with lyrics
 python3 tools/karaoke_export_html.py songs/Dire-Straits_Sultans-of-Swing_v443_m.psarc -o sultans.html
 python3 tools/karaoke_export_html.py --library songs -o songbook.html --audio files
 python3 tools/karaoke_export_html.py --library ~/dlc --recursive -o karaoke/index.html --jobs 4   # a catalog (Step 14)
@@ -1141,8 +1141,8 @@ assets, JSON and escaping; checked on all three audio modes, and on both lyrics 
 a sidecar `.lrc`, and a song left for the browser to look up):
 
 ```bash
-python3 tools/karaoke_export_html.py                     # every song in songs/ -> exports/index.html
-python3 tools/karaoke_export_html.py --serve             # ... then serve it at http://localhost:8000/
+python3 tools/karaoke_export_html.py                     # every song in songs/ -> karaoke/index.html (+ index_files/)
+python3 tools/karaoke_export_html.py FOLDER --lyrics-only # a folder: one page, audio next to it, only songs with lyrics
 python3 tools/karaoke_export_html.py SONG.psarc -o song.html            # audio embedded
 python3 tools/karaoke_export_html.py --library songs -o songbook.html --audio files
 python3 tools/karaoke_export_html.py SONG.psarc -o lyrics.html --audio none
@@ -1153,9 +1153,21 @@ python3 tools/karaoke_export_html.py SONG.psarc -o lyrics.html --audio none
 
 Its only hard requirement is Python 3.9+: the PSARC reader (`rockshiny_ref.py`) falls back
 to a pure-Python AES-256 when `cryptography` is missing (NIST CTR and CFB vectors; a song
-opens in ~0.2 s). `exports/index.html` in this repository was built this way, in the
-sandbox: the four songs with their own audio (26 MB); *Into The Night* is there with its
-lyrics to be looked up by the page.
+opens in ~0.2 s). `karaoke/index.html` in this repository was built this way, in the
+sandbox: the 18 sample songs with their audio as m4a in `karaoke/index_files/` (160 MB);
+the five without lyrics in the file are there with their lyrics to be looked up by the page.
+
+**A folder → a standalone folder.** `karaoke_export_html("FOLDER", "karaoke/index.html")`
+(Python: `karaoke_export_html.py FOLDER -o karaoke/index.html`) lists the folder's `.psarc`
+files directly (no library index is read or written, no catalog), loads each song (skipping
+files that cannot be read), sorts them "Artist — Title" and writes one page; the audio goes to
+`karaoke/index_files/<artist-title>.<ext>` (names made unique: two songs called "Comfortably
+Numb" get `-2`), files of an earlier export that no song uses are removed, unchanged files are
+not copied again. `lyrics_only` keeps the songs whose lyrics are in the archive or in a `.lrc`
+next to it and looks nothing up. At most 100 songs (`KARAOKE_PAGE_MAX`; more: a catalog). The
+Python tool converts the audio in parallel (`--jobs`, default half the cores) and prints what
+has no audio. `tests/frontend/check_karaoke_folder.py` moves a built folder elsewhere and plays
+every song from disk with the network blocked.
 
 The Python tool decodes the audio with `vgmstream-cli` when it is on `PATH`, else with the
 `wem2ogg` package, which repackages the Wwise Vorbis stream losslessly: its output is
@@ -1408,9 +1420,9 @@ A page with embedded audio has to read all of it before the first note plays:
 | 24 | 167 MB | 10.9 s | 1.6 s |
 | 32 | 223 MB | 15.0 s | 1.8 s |
 
-Hence `KARAOKE_EMBED_MAX` = 12 (both R and Python refuse more, pointing to `audio = "files"`
+Hence `KARAOKE_EMBED_MAX` = 12 (both R and Python refuse more embedded songs, pointing to `audio = "files"`; `audio = "auto"`, the default, embeds up to 12 and puts more next to the page
 or a catalog). A **catalog** (`karaoke_export_library()`; Python `--library` with more than
-50 songs, or `--catalog`) is:
+100 songs, or `--catalog`; a folder given as such is always one page, up to 100 songs) is:
 
 - `index.html`: the player, and the song list as stubs `{id, meta, lyrics: "archive" | "web",
   src}` written from the library index, without opening an archive;
@@ -1840,9 +1852,10 @@ popover explains ("open it through a web server … or export it with the audio 
 microphone, works. `check_sing.py` now opens such a songbook from disk and checks that the
 audio advances without a CORS warning.
 
-The exports shipped in `exports/` are therefore two: `index.html` (the 39 sample songs with
-lyrics, audio in `index_files/`; everything when served, e.g. `python3 -m http.server -d
-exports`) and `sing-sampler.html` (6 songs with their audio inside: everything from disk).
+The exports shipped are therefore two: `karaoke/` (the 18 sample songs, audio in
+`karaoke/index_files/`; from disk everything plays, served — `python3 -m http.server -d
+karaoke` — everything works) and `exports/sing-sampler.html` (6 songs with their audio inside:
+everything from disk).
 
 <br>
 

@@ -206,7 +206,7 @@ song_album_art <- function(song) {
   if (!length(dds)) return(NULL)
   best <- dds[grepl("_256\\.dds$", dds)][1]
   if (is.na(best)) best <- dds[which.max(song$arc$entries$length[match(dds, song$arc$entries$name)])]
-  tryCatch(jsonlite::base64_enc(psarc_read(song$arc, best)), error = function(e) NULL)
+  tryCatch(gsub("[\r\n]", "", jsonlite::base64_enc(psarc_read(song$arc, best))), error = function(e) NULL)   # one line, whatever the jsonlite version
 }
 
 `%|NA|%` <- function(a, b) if (is.null(a) || length(a) == 0L || is.na(a) || identical(a, "")) b else a

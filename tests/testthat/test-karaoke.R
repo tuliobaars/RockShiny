@@ -95,6 +95,44 @@ test_that("karaoke_export_html() writes a standalone page (lyrics only, and with
   expect_true(file.exists(file.path(sub("\\.html$", "_files", out), "dire-straits-sultans-of-swing.ogg")))
 })
 
+test_that("karaoke_export_html(folder): every .psarc of a folder in one page, the audio next to it", {
+  skip_if_no_songs()
+  withr::local_options(list(rockshiny.cache_dir = withr::local_tempdir(), rockshiny.lyrics_online = FALSE))
+  src <- withr::local_tempdir()
+  with_lyrics <- need_song(SULTANS)
+  without <- need_song(NO_LYRICS)
+  file.copy(c(with_lyrics, without), src)
+  # the audio: stand-in cached conversions (what the app would have converted)
+  for (f in list.files(src, full.names = TRUE)) {
+    d <- file.path(getOption("rockshiny.cache_dir"), file_key(f))
+    dir.create(d, recursive = TRUE, showWarnings = FALSE)
+    writeBin(as.raw(c(0x4f, 0x67, 0x67, 0x53, 1:60)), file.path(d, "audio.ogg"))
+  }
+  out <- file.path(withr::local_tempdir(), "karaoke", "index.html")
+  files <- file.path(dirname(out), "index_files")
+  dir.create(files, recursive = TRUE)
+  writeBin(as.raw(1:10), file.path(files, "an-old-export.ogg"))           # left over from an earlier export
+  karaoke_export_html(src, out, audio = "files")
+  d <- jsonlite::fromJSON(sub('.*<script type="application/json" id="rs-karaoke-data">(.*?)</script>.*', "\\1",
+                              paste(readLines(out, warn = FALSE), collapse = "\n")), simplifyVector = FALSE)
+  titles <- vapply(d$songs, function(s) s$meta$title, "")
+  expect_setequal(titles, c("Sultans of Swing", "Into The Night"))        # every file: lyrics or not
+  nolyr <- d$songs[[match("Into The Night", titles)]]
+  expect_identical(nolyr$lyrics$lookup$title, "Into The Night")            # looked up by the page
+  srcs <- vapply(d$songs, function(s) s$audio$src, "")
+  expect_true(all(startsWith(srcs, "index_files/")))
+  expect_setequal(list.files(files), basename(srcs))                       # exactly this page's audio
+  expect_false(file.exists(file.path(files, "an-old-export.ogg")))
+  expect_false(file.exists(library_index_file()))                         # no library index, no catalog
+  expect_false(dir.exists(file.path(files, "songs")))
+  # lyrics only: the song without lyrics in the file is left out
+  karaoke_export_html(src, out, audio = "none", lyrics_only = TRUE)
+  d <- jsonlite::fromJSON(sub('.*<script type="application/json" id="rs-karaoke-data">(.*?)</script>.*', "\\1",
+                              paste(readLines(out, warn = FALSE), collapse = "\n")), simplifyVector = FALSE)
+  expect_identical(vapply(d$songs, function(s) s$meta$title, ""), "Sultans of Swing")
+  expect_error(karaoke_export_html(withr::local_tempdir(), out), "No .psarc files")
+})
+
 test_that("template filling is literal and inlined scripts cannot close their <script>", {
   expect_identical(karaoke_fill("a {{X}} b {{X}}", "{{X}}", "\\1 $& \\\\"), "a \\1 $& \\\\ b {{X}}")
   expect_identical(karaoke_json_for_html('{"w":"</script>"}'), '{"w":"\\u003c/script>"}')

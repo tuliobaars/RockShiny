@@ -38,27 +38,61 @@ audio_tools <- function() {
 }
 
 #' Which .wem is the full song? The song soundbank (song_<key>.bnk, not the
-#' *_preview.bnk) references its wem by 32-bit little-endian id, so search the
-#' bank bytes for each candidate id. Falls back to the largest wem.
+#' *_preview.bnk) lists its media in its DIDX section (12-byte entries: the wem
+#' id, offset, size). Falls back to the wems whose 32-bit little-endian id occurs
+#' anywhere in the bank, then to every wem; among several candidates, wems the
+#' preview bank uses are left out (unless nothing else is left) and the largest
+#' is taken.
 #' @param arc an opened archive (`psarc_open()`).
 #' @export
 find_song_wem <- function(arc) {
   wems <- psarc_find(arc, "\\.wem$")
   if (!length(wems)) stop("No .wem audio found in ", basename(arc$path))
-  ids <- as.numeric(sub("\\.wem$", "", basename(wems)))
-
-  banks <- psarc_find(arc, "\\.bnk$")
-  song_bank <- banks[!grepl("_preview\\.bnk$", banks)]
-  for (bnk in song_bank) {
-    bytes <- psarc_read(arc, bnk)
-    for (i in seq_along(wems)) {
-      if (is.na(ids[i])) next
-      id_le <- as.raw((ids[i] %/% 256^(0:3)) %% 256)
-      if (length(grepRaw(id_le, bytes, fixed = TRUE))) return(wems[i])
-    }
-  }
+  ids <- suppressWarnings(as.numeric(sub("\\.wem$", "", basename(wems))))
   sizes <- arc$entries$length[match(wems, arc$entries$name)]
-  wems[which.max(sizes)]
+  banks <- psarc_find(arc, "\\.bnk$")
+  preview <- grepl("_preview\\.bnk$", banks)
+  refs <- function(bank_names) {                # wems a set of banks refers to: DIDX first, else any id match
+    hit <- rep(FALSE, length(wems))
+    for (bnk in bank_names) {
+      bytes <- psarc_read(arc, bnk)
+      didx <- bank_media_ids(bytes)
+      h <- !is.na(ids) & ids %in% didx
+      if (!any(h)) {
+        h <- vapply(seq_along(wems), function(i) !is.na(ids[i]) &&
+                      length(grepRaw(as.raw((ids[i] %/% 256^(0:3)) %% 256), bytes, fixed = TRUE)) > 0L, TRUE)
+      }
+      hit <- hit | h
+    }
+    hit
+  }
+  cand <- refs(banks[!preview])
+  if (!any(cand)) cand <- rep(TRUE, length(wems))
+  if (sum(cand) > 1L && any(preview)) {
+    keep <- cand & !refs(banks[preview])
+    if (any(keep)) cand <- keep
+  }
+  i <- which(cand)
+  wems[i[which.max(sizes[i])]]
+}
+
+#' Media ids listed in a Wwise soundbank's DIDX section (none without one).
+#' @noRd
+bank_media_ids <- function(bytes) {
+  out <- numeric(0)
+  o <- 1L
+  n <- length(bytes)
+  u32 <- function(at) sum(as.numeric(bytes[at:(at + 3L)]) * 256^(0:3))
+  while (o + 7L <= n) {
+    tag <- rawToChar(bytes[o:(o + 3L)][bytes[o:(o + 3L)] != as.raw(0)])
+    len <- u32(o + 4L)
+    if (identical(tag, "DIDX")) {
+      k <- 0
+      while (k + 12 <= len && o + 8L + k + 3L <= n) { out <- c(out, u32(o + 8L + k)); k <- k + 12 }
+    }
+    o <- o + 8L + len
+  }
+  out
 }
 
 run_tool <- function(cmd, args) {

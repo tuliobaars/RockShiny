@@ -3,8 +3,11 @@
 \name{find_song_wem}
 \alias{find_song_wem}
 \title{Which .wem is the full song? The song soundbank (song_\if{html}{\out{<key>}}.bnk, not the
-*_preview.bnk) references its wem by 32-bit little-endian id, so search the
-bank bytes for each candidate id. Falls back to the largest wem.}
+*_preview.bnk) lists its media in its DIDX section (12-byte entries: the wem
+id, offset, size). Falls back to the wems whose 32-bit little-endian id occurs
+anywhere in the bank, then to every wem; among several candidates, wems the
+preview bank uses are left out (unless nothing else is left) and the largest
+is taken.}
 \usage{
 find_song_wem(arc)
 }
@@ -13,6 +16,9 @@ find_song_wem(arc)
 }
 \description{
 Which .wem is the full song? The song soundbank (song_\if{html}{\out{<key>}}.bnk, not the
-*_preview.bnk) references its wem by 32-bit little-endian id, so search the
-bank bytes for each candidate id. Falls back to the largest wem.
+*_preview.bnk) lists its media in its DIDX section (12-byte entries: the wem
+id, offset, size). Falls back to the wems whose 32-bit little-endian id occurs
+anywhere in the bank, then to every wem; among several candidates, wems the
+preview bank uses are left out (unless nothing else is left) and the largest
+is taken.
 }

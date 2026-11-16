@@ -9,6 +9,8 @@
 #
 #   karaoke_export_html("songs/Dire-Straits_Sultans-of-Swing_v443_m.psarc", "sultans.html")
 #   karaoke_export_html(karaoke_choices(), "songbook.html", audio = "files")
+#   karaoke_export_html("songs", "karaoke/index.html", audio_format = "m4a")   # a folder: a standalone folder
+#   karaoke_export_html("songs", "karaoke/index.html", lyrics_only = TRUE)     # ...only songs with lyrics
 #   karaoke_export_library("~/Rocksmith/dlc", "karaoke/index.html")   # big libraries: songs load when picked
 #
 # Audio: the song's converted audio (the cache the app uses; converted on the
@@ -18,32 +20,69 @@
 
 #' Write a standalone karaoke page.
 #'
-#' @param songs one or more .psarc paths (songs with lyrics) or rs_karaoke_song
-#'   objects; several songs make a songbook with a song picker.
-#' @param file output .html path.
-#' @param audio "embed" (default: audio inside the page, a single portable
-#'   file), "files" (audio copied next to the page, in `<file>_files/`) or
-#'   "none" (lyrics only; the page offers "Load audio...").
+#' @param songs one or more .psarc paths or rs_karaoke_song objects (several
+#'   make a songbook with a song picker), or a folder: every .psarc in it (no
+#'   library index, no catalog: one page, at most `KARAOKE_PAGE_MAX` = 100 songs).
+#' @param file output .html path. With `audio = "files"` the audio goes into
+#'   `<file>_files/`: the page and that folder are the whole, standalone export
+#'   (e.g. `karaoke/index.html` + `karaoke/index_files/`).
+#' @param audio "auto" (default: "embed" for up to 12 songs, else "files"),
+#'   "embed" (audio inside the page, a single portable file), "files" (audio
+#'   copied next to the page, in `<file>_files/`) or "none" (lyrics only; the
+#'   page offers "Load audio...").
 #' @param audio_format "auto" keeps the cached conversion (Ogg Vorbis for most
 #'   browsers); "mp3" or "m4a" re-encode with ffmpeg for the widest browser
-#'   support (e.g. older Safari has no Ogg).
+#'   support (e.g. Safari has no Ogg).
 #' @param title page title (default: the song, or "RockShiny karaoke").
 #' @param options initial player settings, as in karaoke_settings().
 #' @param online look up lyrics on LRCLIB for songs whose archive has none (lyrics_online.R).
 #' @param lookup_in_browser keep songs whose lyrics were not found (e.g. offline):
 #'   the page looks them up itself when opened (LRCLIB, from the browser).
+#'   Default: TRUE for a folder (every file is listed), FALSE otherwise.
+#' @param lyrics_only only songs whose lyrics are in the file itself (or in a
+#'   .lrc file next to it, same name): nothing is looked up.
+#' @param recursive a folder: include its subfolders.
 #' @return `file`, invisibly.
 #' @export
-karaoke_export_html <- function(songs, file = "karaoke.html", audio = c("embed", "files", "none"),
+karaoke_export_html <- function(songs, file = "karaoke.html", audio = c("auto", "embed", "files", "none"),
                                 audio_format = c("auto", "mp3", "m4a"), title = NULL, options = list(),
-                                online = getOption("rockshiny.lyrics_online", TRUE), lookup_in_browser = FALSE) {
+                                online = getOption("rockshiny.lyrics_online", TRUE), lookup_in_browser = NULL,
+                                lyrics_only = FALSE, recursive = FALSE) {
   audio <- match.arg(audio)
   audio_format <- match.arg(audio_format)
   if (inherits(songs, "rs_karaoke_song")) songs <- list(songs)
-  songs <- lapply(songs, function(s) {
-    if (inherits(s, "rs_karaoke_song")) s else load_karaoke_song(s, online = online, allow_missing = lookup_in_browser)
+  folder <- is.character(songs) && length(songs) == 1L && dir.exists(songs)
+  if (is.null(lookup_in_browser)) lookup_in_browser <- folder && !lyrics_only
+  if (lyrics_only) { online <- FALSE; lookup_in_browser <- FALSE }
+  if (folder) {
+    paths <- sort(list.files(songs, pattern = "\\.psarc$", ignore.case = TRUE, recursive = recursive, full.names = TRUE))
+    if (!length(paths)) stop("No .psarc files in ", songs, if (!recursive) " (recursive = TRUE for subfolders)", ".", call. = FALSE)
+    if (length(paths) > KARAOKE_PAGE_MAX) {
+      stop(length(paths), " songs are too many for one page (at most ", KARAOKE_PAGE_MAX,
+           "): use karaoke_export_library() for a catalog.", call. = FALSE)
+    }
+    songs <- as.list(paths)
+  }
+  loaded <- lapply(songs, function(s) {
+    if (inherits(s, "rs_karaoke_song")) return(s)
+    if (!folder) return(load_karaoke_song(s, online = online, allow_missing = lookup_in_browser))
+    tryCatch(load_karaoke_song(s, online = online, allow_missing = lookup_in_browser), error = function(e) {
+      if (!lyrics_only) message("  skipped ", basename(s), ": ", conditionMessage(e))
+      NULL
+    })
   })
-  if (!length(songs)) stop("No songs to export.", call. = FALSE)
+  songs <- Filter(Negate(is.null), loaded)
+  # lyrics only: in the archive (lyrics NULL) or a .lrc next to the file
+  if (lyrics_only) songs <- Filter(function(k) is.null(k$lyrics) || identical(k$lyrics$source, "file"), songs)
+  if (folder && lyrics_only && length(songs) < length(loaded)) {
+    message("  left out (no lyrics in the file): ", length(loaded) - length(songs), " of ", length(loaded))
+  }
+  if (!length(songs)) stop("No songs to export", if (lyrics_only) " (none has lyrics in the file)", ".", call. = FALSE)
+  if (folder) {                                               # the library's order: "Artist - Title"
+    lab <- vapply(songs, function(k) tolower(paste0(k$meta$artist %|NA|% "", " \u2014 ", k$meta$title %|NA|% k$name)), "")
+    songs <- songs[order(lab)]
+  }
+  if (audio == "auto") audio <- if (length(songs) > KARAOKE_EMBED_MAX) "files" else "embed"
   if (audio == "embed" && length(songs) > KARAOKE_EMBED_MAX) {
     stop(length(songs), " songs are too many to embed their audio in one page (at most ", KARAOKE_EMBED_MAX,
          "): use audio = \"files\", or karaoke_export_library() for a whole library.", call. = FALSE)
@@ -52,6 +91,7 @@ karaoke_export_html <- function(songs, file = "karaoke.html", audio = c("embed",
   files_dir <- paste0(tools::file_path_sans_ext(file), "_files")
   payloads <- character(length(songs))
   blobs <- character(0)
+  used <- character(0)                                        # audio files written (one name per song)
   for (i in seq_along(songs)) {
     k <- songs[[i]]
     a <- NULL
@@ -67,17 +107,31 @@ karaoke_export_html <- function(songs, file = "karaoke.html", audio = c("embed",
         if (audio == "embed") {
           id <- sprintf("rs-karaoke-audio-%d", i)
           blobs <- c(blobs, sprintf('<script type="text/plain" id="%s">%s</script>', id,
-                                    jsonlite::base64_enc(readBin(src, "raw", file.size(src)))))
+                                    gsub("[\r\n]", "", jsonlite::base64_enc(readBin(src, "raw", file.size(src))))))
           a <- list(embed = id, type = mime)
         } else {
           dir.create(files_dir, showWarnings = FALSE, recursive = TRUE)
-          dest <- file.path(files_dir, paste0(karaoke_slug(k), ".", ext))
-          file.copy(src, dest, overwrite = TRUE)
+          dest <- file.path(files_dir, karaoke_audio_name(k, ext, used))
+          used <- c(used, basename(dest))
+          if (!(file.exists(dest) && file.size(dest) == file.size(src) && file.mtime(dest) >= file.mtime(src))) {
+            file.copy(src, dest, overwrite = TRUE)
+          }
           a <- list(src = paste(basename(files_dir), basename(dest), sep = "/"), type = mime)
         }
       }
     }
     payloads[i] <- karaoke_json(k, audio = a)
+  }
+
+  # the folder holds exactly this page's audio: files of earlier exports that no song uses are removed
+  if (audio == "files" && dir.exists(files_dir)) {
+    old <- list.files(files_dir, pattern = paste0("\\.(", paste(names(KARAOKE_AUDIO_MIME), collapse = "|"), ")$"))
+    unlink(file.path(files_dir, setdiff(old, used)))
+  }
+  if (folder) {
+    n_audio <- sum(vapply(payloads, function(p) grepl('"audio":{', p, fixed = TRUE), TRUE))
+    message(sprintf("%d song(s) in %s: %d with audio, %d lyrics in the file", length(songs), basename(file), n_audio,
+                    sum(vapply(songs, function(k) is.null(k$lyrics), TRUE))))
   }
 
   if (is.null(title)) {
@@ -120,6 +174,21 @@ karaoke_write_page <- function(file, title, options, payloads, blobs = character
 #' every song adds ~5-10 MB of base64 text that the browser parses up front.
 #' @noRd
 KARAOKE_EMBED_MAX <- 12L
+
+#' Most songs in one page (karaoke_export_html() of a folder); more: karaoke_export_library().
+#' @noRd
+KARAOKE_PAGE_MAX <- 100L
+
+#' The audio file name of a song in `<page>_files/`: its slug, made unique (two
+#' files of the same song get "-2", "-3").
+#' @noRd
+karaoke_audio_name <- function(song, ext, used = character()) {
+  base <- karaoke_slug(song)
+  name <- paste0(base, ".", ext)
+  i <- 1L
+  while (name %in% used) { i <- i + 1L; name <- paste0(base, "-", i, ".", ext) }
+  name
+}
 
 #' Write a karaoke catalog of a library folder: one page listing the songs that
 #' can be sung (from the library index -- no archive is opened to list them),

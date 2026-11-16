@@ -7,27 +7,33 @@
 karaoke_export_html(
   songs,
   file = "karaoke.html",
-  audio = c("embed", "files", "none"),
+  audio = c("auto", "embed", "files", "none"),
   audio_format = c("auto", "mp3", "m4a"),
   title = NULL,
   options = list(),
   online = getOption("rockshiny.lyrics_online", TRUE),
-  lookup_in_browser = FALSE
+  lookup_in_browser = NULL,
+  lyrics_only = FALSE,
+  recursive = FALSE
 )
 }
 \arguments{
-\item{songs}{one or more .psarc paths (songs with lyrics) or rs_karaoke_song
-objects; several songs make a songbook with a song picker.}
+\item{songs}{one or more .psarc paths or rs_karaoke_song objects (several
+make a songbook with a song picker), or a folder: every .psarc in it (no
+library index, no catalog: one page, at most \code{KARAOKE_PAGE_MAX} = 100 songs).}
 
-\item{file}{output .html path.}
+\item{file}{output .html path. With \code{audio = "files"} the audio goes into
+\verb{<file>_files/}: the page and that folder are the whole, standalone export
+(e.g. \code{karaoke/index.html} + \verb{karaoke/index_files/}).}
 
-\item{audio}{"embed" (default: audio inside the page, a single portable
-file), "files" (audio copied next to the page, in \verb{<file>_files/}) or
-"none" (lyrics only; the page offers "Load audio...").}
+\item{audio}{"auto" (default: "embed" for up to 12 songs, else "files"),
+"embed" (audio inside the page, a single portable file), "files" (audio
+copied next to the page, in \verb{<file>_files/}) or "none" (lyrics only; the
+page offers "Load audio...").}
 
 \item{audio_format}{"auto" keeps the cached conversion (Ogg Vorbis for most
 browsers); "mp3" or "m4a" re-encode with ffmpeg for the widest browser
-support (e.g. older Safari has no Ogg).}
+support (e.g. Safari has no Ogg).}
 
 \item{title}{page title (default: the song, or "RockShiny karaoke").}
 
@@ -36,7 +42,13 @@ support (e.g. older Safari has no Ogg).}
 \item{online}{look up lyrics on LRCLIB for songs whose archive has none (lyrics_online.R).}
 
 \item{lookup_in_browser}{keep songs whose lyrics were not found (e.g. offline):
-the page looks them up itself when opened (LRCLIB, from the browser).}
+the page looks them up itself when opened (LRCLIB, from the browser).
+Default: TRUE for a folder (every file is listed), FALSE otherwise.}
+
+\item{lyrics_only}{only songs whose lyrics are in the file itself (or in a
+.lrc file next to it, same name): nothing is looked up.}
+
+\item{recursive}{a folder: include its subfolders.}
 }
 \value{
 \code{file}, invisibly.

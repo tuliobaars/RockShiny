@@ -83,7 +83,9 @@ test_that("a song without lyrics in the archive gets them from the lookup (paylo
   expect_identical(j$lyrics$lrc, "[00:10.00]la la\n[00:14.00]la la la")
   expect_true(j$lyrics$align)
   expect_length(j$vocals$t, 0)
-  # now known: listed with the songs that have lyrics
+  # now known: listed with the songs that have lyrics (songs/ read as a small library: a lazy one, over 50
+  # files, does not hash every file to find cached lyrics)
+  withr::local_options(list(rockshiny.library_lazy_threshold = max(50L, length(sample_songs()))))
   expect_true(normalizePath(need_song(NO_LYRICS)) %in% karaoke_choices(songs_dir()))
 })
 

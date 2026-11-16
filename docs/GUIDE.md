@@ -226,13 +226,23 @@ karaoke_export_html("songs/Dire-Straits_Sultans-of-Swing_v443_m.psarc", "sultans
 karaoke_export_html(karaoke_choices("songs"), "songbook.html", audio = "files")   # all songs with lyrics
 ```
 
-**Without R (Python):** one command builds **`exports/index.html`**, every song in
-`songs/` with its audio, ready to open:
+**A standalone karaoke folder** from a folder of `.psarc` files: one page with every
+song of the folder and its audio next to it (`karaoke/index.html` +
+`karaoke/index_files/`), nothing else (no library index, no catalog), up to 100 songs.
+Open `karaoke/index.html` from disk or copy the folder anywhere:
+
+```r
+karaoke_export_html("songs", "karaoke/index.html", audio_format = "m4a")
+karaoke_export_html("songs", "karaoke/index.html", lyrics_only = TRUE)   # only songs with lyrics in the file
+```
+
+**Without R (Python):** one command builds **`karaoke/`** from `songs/`:
 
 ```bash
 pip install wem2ogg                       # decodes the audio (unless vgmstream-cli is installed)
-python3 tools/karaoke_export_html.py      # -> exports/index.html
-python3 tools/karaoke_export_html.py --serve          # ... and serve it at http://localhost:8000/index.html
+python3 tools/karaoke_export_html.py      # -> karaoke/index.html + karaoke/index_files/ (m4a)
+python3 tools/karaoke_export_html.py ~/Music/Rocksmith -o karaoke/index.html --lyrics-only
+python3 -m http.server -d karaoke         # optional: served, the voice control and web-lyrics sync work too
 ```
 
 More control:
@@ -273,7 +283,7 @@ python3 tools/karaoke_export_html.py --library ~/Music/Rocksmith --serve     # b
 | building it with audio | the audio conversion dominates: seconds per song (`--jobs` runs several at once); re-runs only add what is new |
 | `--serve` | starts in under a second; each song is built the first time it is opened (lyrics at once, audio a few seconds later) and kept |
 
-`--library` folders with more than 50 songs become catalogs automatically (`--single` to
+`--library` folders with more than 100 songs become catalogs automatically (`--single` to
 prevent it).
 
 | Option (R / Python) | Values | Use it for |
