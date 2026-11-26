@@ -18,15 +18,16 @@
 #' The Creator's sidebar + studio.
 #' @param id module id.
 #' @param sidebar_width sidebar width in pixels (RockShiny's modes use 340).
+#' @param library_ui optional library status/switcher bar (`mod_library_bar_ui()`).
 #' @export
-mod_creator_ui <- function(id, sidebar_width = 340) {
+mod_creator_ui <- function(id, sidebar_width = 340, library_ui = NULL) {
   ns <- shiny::NS(id)
   bslib::layout_sidebar(
     sidebar = bslib::sidebar(
       width = sidebar_width, class = "rs-sidebar rsc-sidebar",
       bslib::accordion(
         class = "rs-accordion", id = ns("sections"), multiple = TRUE, open = c("song", "save"),
-        mod_project_ui(ns("project")),
+        mod_project_ui(ns("project"), library_ui = library_ui),
         mod_lyrics_ui(ns("lyrics")),
         mod_stems_ui(ns("stems")),
         mod_export_ui(ns("export"))
@@ -108,11 +109,12 @@ creator_brand <- function() {
 
 #' The standalone Creator page (creator/app.R).
 #' @noRd
-creator_page <- function(id = "creator") {
+creator_page <- function(id = "creator", library_ui = NULL) {
   bslib::page_navbar(
     title = creator_brand(), id = "creator_nav", window_title = "RockShiny Creator", theme = creator_theme(),
     fillable = TRUE, padding = 0, gap = 0,
     navbar_options = if (exists("navbar_options", envir = asNamespace("bslib"))) bslib::navbar_options(underline = FALSE, collapsible = FALSE),
-    bslib::nav_panel("Studio", value = "studio", icon = shiny::icon("wand-magic-sparkles"), mod_creator_ui(id))
+    bslib::nav_panel("Studio", value = "studio", icon = shiny::icon("wand-magic-sparkles"),
+                     mod_creator_ui(id, library_ui = library_ui))
   )
 }

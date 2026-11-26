@@ -1,0 +1,8 @@
+^renv$
+^renv\.lock$
+^__MACOSX$
+(^|/)\.DS_Store$
+(^|/)\._
+^deliverables$
+^.*\.Rproj$
+^\.Rproj\.user$

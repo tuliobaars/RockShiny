@@ -129,7 +129,7 @@ ui <- function(req) {
     ),
     if (creator_on) bslib::nav_panel(                   # the song studio (creator/R/mod_creator.R)
       "Creator", value = "creator", icon = shiny::icon("wand-magic-sparkles"),
-      mod_creator_ui("creator")
+      mod_creator_ui("creator", library_ui = mod_library_bar_ui("library", "creator"))
     )
   )
 }

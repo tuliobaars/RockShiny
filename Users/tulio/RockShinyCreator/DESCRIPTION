@@ -1,0 +1,31 @@
+Package: RockShiny
+Title: Rocksmith 2014 PSARC Note-Highway Player for Shiny
+Version: 0.1.0
+Authors@R: person("Your", "Name", email = "your.email@example.com", role = c("aut", "cre"))
+Description: Unpacks Rocksmith 2014 .psarc archives (AES/zlib), parses XML and
+    SNG note charts, converts Wwise audio for the browser and renders a
+    Rocksmith-style 3D note highway through a custom Shiny output binding.
+    A karaoke mode shows the lyrics of songs that have them, highlighted
+    syllable by syllable in sync with the audio, in Shiny or as a standalone
+    HTML page.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends:
+    R (>= 4.0.0)
+Imports:
+    shiny (>= 1.7.0),
+    bslib,
+    htmltools,
+    jsonlite,
+    later,
+    xml2,
+    openssl,
+    stats,
+    tools,
+    utils
+Suggests:
+    testthat (>= 3.0.0),
+    withr
+SystemRequirements: vgmstream-cli (Wwise audio decoding), ffmpeg (audio encoding)
+Config/roxygen2/version: 8.1.1

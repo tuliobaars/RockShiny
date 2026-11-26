@@ -165,3 +165,10 @@ test_that("Help: the sidebar's Help and tour buttons name the module's studio; t
   for (s in c("What it can do", "What it can\\u2019t do", "Difficulty levels", "does not transcribe a song for you", "Not tested in the game"))
     expect_match(js, s, fixed = TRUE, info = s)
 })
+
+test_that("Creator renders the optional library bar (including the DLC source slot)", {
+  ui <- htmltools::renderTags(mod_creator_ui("creator", library_ui = mod_library_bar_ui("library", "creator")))$html
+  expect_match(ui, "library-bar_creator", fixed = TRUE)
+  expect_match(ui, "library-src_creator", fixed = TRUE)
+  expect_match(ui, "library-change_creator", fixed = TRUE)
+})

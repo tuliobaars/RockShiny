@@ -1,0 +1,20 @@
+.Rproj.user
+.Rhistory
+.RData
+.Ruserdata
+tests/frontend/fixtures/
+__pycache__/
+tests/webr/node_modules/
+exports/
+.parity/
+creator/tests/js/out/
+# macOS Finder / archive metadata
+.DS_Store
+__MACOSX/
+._*
+node_modules/
+.venv/
+venv/
+dist/
+build/
+converage/

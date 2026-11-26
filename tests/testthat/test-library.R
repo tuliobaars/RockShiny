@@ -163,3 +163,44 @@ test_that("the app's library notices new files in its folder", {
   expect_gt(library_version(), v)
   expect_identical(nrow(library_current()$songs), 2L)
 })
+
+test_that("dlc alias resolves macOS bookmark, symlink, and text pointer; library bar switches to DLC", {
+  local_library()
+  # 1. Real root macOS Finder Alias file (when present in project root)
+  root_dlc <- file.path(getOption("rockshiny.root", "."), "dlc")
+  if (file.exists(root_dlc) && !dir.exists(root_dlc)) {
+    p <- parse_macos_bookmark(root_dlc)
+    expect_type(p, "character")
+    expect_true(startsWith(p, "/") && grepl("/dlc$", p))
+    expect_identical(library_dlc_dir(), resolve_path_alias(root_dlc))
+  }
+  # 2. Text pointer & directory / symlink resolution via options(rockshiny.dlc_alias)
+  target <- withr::local_tempdir()
+  ptr <- tempfile("dlc-ptr-")
+  writeLines(target, ptr)
+  on.exit(unlink(ptr), add = TRUE)
+  expect_identical(resolve_path_alias(ptr), normalizePath(target, winslash = "/"))
+  withr::local_options(list(rockshiny.dlc_alias = ptr, rockshiny.dlc_dir = NULL))
+  expect_identical(library_dlc_dir(), normalizePath(target, winslash = "/"))
+  # 3. mod_library_bar_ui wires all four modules (instrument, karaoke, creator, home)
+  for (w in c("instrument", "karaoke", "creator", "home")) {
+    html <- as.character(mod_library_bar_ui("library", w))
+    expect_match(html, paste0("library-bar_", w), fixed = TRUE)
+    expect_match(html, paste0("library-src_", w), fixed = TRUE)
+    expect_match(html, paste0("library-change_", w), fixed = TRUE)
+  }
+  # 4. mod_library_server switches to the dlc alias folder (recursive = TRUE) on click
+  sub <- file.path(target, "sub"); dir.create(sub)
+  if (length(sample_songs())) file.copy(sample_songs()[1], sub)
+  old_lib <- .library_state$lib
+  on.exit(.library_state$lib <- old_lib, add = TRUE)
+  def <- withr::local_tempdir()
+  library_use(def, FALSE)
+  withr::local_options(list(rockshiny.library_dir = def, rockshiny.library_recursive = FALSE))
+  shiny::testServer(mod_library_server, {
+    session$setInputs(source = list(kind = "dlc", n = 1))
+    expect_identical(library_dir(), normalizePath(target))
+    expect_true(library_recursive())
+    if (length(sample_songs())) expect_identical(nrow(library_current()$songs), 1L)
+  })
+})

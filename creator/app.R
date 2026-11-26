@@ -15,10 +15,11 @@
 library(shiny)
 if (!exists("mod_creator_ui", mode = "function")) source("global.R", local = TRUE)   # runApp() has sourced it already
 
-ui <- function(req) creator_page("creator")
+ui <- function(req) creator_page("creator", library_ui = mod_library_bar_ui("library", "creator"))
 
 server <- function(input, output, session) {
-  mod_creator_server("creator")
+  lib <- mod_library_server("library")
+  mod_creator_server("creator", lib = lib)
 }
 
 shinyApp(ui, server)

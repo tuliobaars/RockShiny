@@ -9,7 +9,7 @@
 CREATOR_AUDIO_EXT <- c("mp3", "ogg", "oga", "wav", "flac", "m4a", "aac", "opus", "webm", "wem")
 
 #' @noRd
-mod_project_ui <- function(id) {
+mod_project_ui <- function(id, library_ui = NULL) {
   ns <- shiny::NS(id)
   bslib::accordion_panel(
     "Song", value = "song", icon = shiny::icon("music"),
@@ -30,6 +30,7 @@ mod_project_ui <- function(id) {
       htmltools::tags$button(type = "button", class = "btn btn-sm rs-shuffle", `data-rsc-help` = sub("project-$", "studio-studio", ns("")),
                              `data-rsc-what` = "demo", title = "Night Drive: a song made from scratch, to try everything on",
                              shiny::icon("music"), "Demo song")),
+    if (!is.null(library_ui)) library_ui,
     htmltools::div(class = "rs-hint", "A .psarc opens for editing; an audio file (mp3, ogg, wav, flac, m4a, .wem) starts a new song."),
     shiny::uiOutput(ns("state"))
   )
@@ -80,16 +81,21 @@ mod_project_server <- function(id, studio, lib = NULL) {
     ns <- session$ns
     if (is.null(lib)) lib <- shiny::reactivePoll(2000, session, checkFunc = library_version, valueFunc = library_current)
     offered <- shiny::reactiveVal(character())
+    offered_choices <- shiny::reactiveVal(NULL)
     shiny::observe({
       l <- lib()
       s <- library_all_songs(l)
       s <- s[s$kind == "psarc" | grepl("\\.psarc$", s$path, ignore.case = TRUE), , drop = FALSE]
-      paths <- s$path[order(tolower(s$label))]
-      if (identical(paths, shiny::isolate(offered()))) return()
+      o <- order(tolower(s$label))
+      paths <- s$path[o]
+      labels <- s$label[o]
+      ch <- as.list(stats::setNames(paths, labels))
+      if (identical(ch, shiny::isolate(offered_choices()))) return()
       offered(paths)
-      labels <- s$label[order(tolower(s$label))]
-      shiny::updateSelectizeInput(session, "library", choices = c(list(""), as.list(stats::setNames(paths, labels))),
-                                  selected = shiny::isolate(input$library) %||% "")
+      offered_choices(ch)
+      cur <- shiny::isolate(input$library) %||% ""
+      keep <- if (nzchar(cur) && cur %in% paths) cur else ""
+      shiny::updateSelectizeInput(session, "library", choices = c(list(""), ch), selected = keep)
     })
     shiny::observeEvent(input$library, {
       shiny::req(nzchar(input$library), input$library %in% offered())

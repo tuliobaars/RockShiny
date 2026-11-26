@@ -70,8 +70,10 @@ kbd { font-size: .7rem; padding: 1px 5px; border-radius: 4px; background: rgba(2
 .rs-history td, .rs-history th { padding: 2px 4px !important; }
 
 /* library folder (mod_library.R): a status line under each song list, and the folder dialog */
-.rs-libbar { display: flex; align-items: center; gap: 8px; margin: -.45rem 0 .8rem; padding: 6px 9px; border-radius: 8px;
+.rs-libbar { display: flex; flex-direction: column; gap: 6px; margin: -.45rem 0 .8rem; padding: 6px 9px; border-radius: 8px;
   background: rgba(255,255,255,.03); box-shadow: inset 0 0 0 1px rgba(255,255,255,.06); font-size: .76rem; color: rgba(232,234,241,.6); }
+.rs-libbar-row { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+.rs-libbar-row > .fa, .rs-libbar-row > svg,
 .rs-libbar > .fa, .rs-libbar > svg { flex: none; color: rgba(245,165,36,.8); fill: rgba(245,165,36,.8); }
 .rs-libbar-text { flex: 1; min-width: 0; }
 .rs-libbar-text > .shiny-html-output { display: flex; flex-direction: column; min-width: 0; }
@@ -79,6 +81,18 @@ kbd { font-size: .7rem; padding: 1px 5px; border-radius: 4px; background: rgba(2
 .rs-libbar-count { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rs-libbar-change { flex: none; font-weight: 650; color: #f5a524; text-decoration: none; }
 .rs-libbar-change:hover { color: #ffc46b; text-decoration: underline; }
+.rs-libbar-sources { display: flex; gap: 5px; width: 100%; }
+.rs-libbar-sources:empty { display: none; }
+.rs-libsrc { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 3px 8px; border-radius: 6px;
+  border: 1px solid rgba(255,255,255,.09); background: rgba(255,255,255,.03); color: rgba(232,234,241,.72);
+  font-size: .72rem; font-weight: 650; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; transition: background .15s, color .15s, border-color .15s; }
+.rs-libsrc:hover { background: rgba(245,165,36,.12); color: #fff; border-color: rgba(245,165,36,.35); }
+.rs-libsrc.is-active { background: rgba(245,165,36,.2); color: #ffc46b; border-color: rgba(245,165,36,.55); }
+.rs-libsrc > .fa, .rs-libsrc > svg { flex: none; font-size: .72rem; }
+.rs-libpresets { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 .7rem; }
+.rs-libpreset { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 7px;
+  border: 1px solid rgba(245,165,36,.32); background: rgba(245,165,36,.08); color: #ffc46b; font-size: .78rem; font-weight: 600; cursor: pointer; }
+.rs-libpreset:hover { background: rgba(245,165,36,.18); color: #fff; border-color: rgba(245,165,36,.6); }
 .rs-libdir-msg { font-size: .8rem; color: rgba(232,234,241,.65); margin: .2rem 0 .5rem; }
 .rs-libdir-msg.is-error { color: #ff8a7a; }
 .rs-libdirs { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; padding: 4px; border-radius: 8px;

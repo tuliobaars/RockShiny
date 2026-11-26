@@ -34,6 +34,178 @@ LIBRARY_PATTERN <- "\\.(psarc|mid|midi|kar)$"
 
 .library_state <- new.env(parent = emptyenv())
 
+# ---- macOS alias / bookmark & DLC folder --------------------------------------------------
+
+#' Parse a macOS Finder Alias / Bookmark binary file ("book....mark....") and
+#' return the POSIX target path, or NULL if not a valid bookmark.
+#' @noRd
+parse_macos_bookmark <- function(path) {
+  if (!length(path) || !file.exists(path) || dir.exists(path)) return(NULL)
+  sz <- suppressWarnings(file.size(path))
+  if (is.na(sz) || sz < 56 || sz > 1024 * 1024) return(NULL)
+  b <- readBin(path, "raw", n = as.integer(sz))
+  if (length(b) < 56L || !identical(b[1:4], charToRaw("book"))) return(NULL)
+  # Finder alias files start with "book\0\0\0\0mark\0\0\0\0" (base offset at byte 16);
+  # raw NSURL bookmark blobs have header_size at byte 12.
+  base <- if (identical(b[9:12], charToRaw("mark"))) le_u32(b, 16L) else le_u32(b, 12L)
+  if (is.na(base) || base < 16 || base + 4 > length(b)) return(NULL)
+
+  read_item <- function(off) {
+    pos <- base + off
+    if (is.na(pos) || pos < base || pos + 8 > length(b)) return(NULL)
+    dlen <- le_u32(b, pos)
+    dtype <- le_u32(b, pos + 4)
+    if (is.na(dlen) || pos + 8 + dlen > length(b)) return(NULL)
+    val <- if (dlen > 0) b[(pos + 9):(pos + 8 + dlen)] else raw(0)
+    list(type = dtype, val = val)
+  }
+  decode_utf8 <- function(raw_bytes) {
+    s <- rawToChar(raw_bytes[raw_bytes != as.raw(0)])
+    Encoding(s) <- "UTF-8"
+    s
+  }
+
+  parts <- character()
+  vol <- "/"
+  toc_off <- le_u32(b, base)
+  hops <- 0L
+  while (!is.na(toc_off) && toc_off > 0 && hops < 16L) {
+    hops <- hops + 1L
+    toc_pos <- base + toc_off
+    if (toc_pos + 20 > length(b)) break
+    next_toc <- le_u32(b, toc_pos + 12)
+    count <- le_u32(b, toc_pos + 16)
+    if (is.na(count) || count > 2000 || toc_pos + 20 + count * 12 > length(b)) break
+    for (i in seq_len(count) - 1L) {
+      key <- le_u32(b, toc_pos + 20 + i * 12)
+      off <- le_u32(b, toc_pos + 24 + i * 12)
+      if (identical(key, 0x1004)) {                              # kBookmarkPath: array of path components
+        it <- read_item(off)
+        if (!is.null(it) && identical(it$type, 0x0601) && length(it$val) >= 4L) {
+          n_el <- length(it$val) %/% 4L
+          comps <- character(n_el)
+          for (j in seq_len(n_el) - 1L) {
+            el <- read_item(le_u32(it$val, j * 4L))
+            if (!is.null(el) && identical(el$type, 0x0101)) comps[j + 1L] <- decode_utf8(el$val)
+          }
+          comps <- comps[nzchar(comps)]
+          if (length(comps)) parts <- comps
+        }
+      } else if (identical(key, 0x2002)) {                       # kBookmarkVolumePath: volume mount point
+        it <- read_item(off)
+        if (!is.null(it) && identical(it$type, 0x0101)) {
+          v <- decode_utf8(it$val)
+          if (nzchar(v)) vol <- v
+        }
+      }
+    }
+    toc_off <- next_toc
+  }
+  if (!length(parts)) return(NULL)
+  paste0(sub("/+$", "", vol), "/", paste(parts, collapse = "/"))
+}
+
+#' Resolve a folder path, symlink, macOS Finder Alias (bookmark), or plain-text
+#' path pointer file to a target folder path. Returns NULL if unresolvable.
+#' @noRd
+resolve_path_alias <- function(path) {
+  if (!length(path) || is.na(path) || !nzchar(trimws(path))) return(NULL)
+  p <- path.expand(trimws(path))
+  if (dir.exists(p)) return(normalizePath(p, winslash = "/", mustWork = FALSE))
+  if (!file.exists(p)) return(NULL)
+
+  bm <- tryCatch(parse_macos_bookmark(p), error = function(e) NULL)
+  if (!is.null(bm) && dir.exists(bm)) return(normalizePath(bm, winslash = "/", mustWork = FALSE))
+
+  # Plain-text pointer file (portable fallback: a single line containing a folder path)
+  sz <- suppressWarnings(file.size(p))
+  if (is.null(bm) && !is.na(sz) && sz > 0 && sz <= 4096) {
+    raw_b <- tryCatch(readBin(p, "raw", n = as.integer(sz)), error = function(e) raw(0))
+    if (length(raw_b) && !any(raw_b == as.raw(0))) {
+      lines <- tryCatch(readLines(p, n = 5L, warn = FALSE, encoding = "UTF-8"), error = function(e) character())
+      lines <- trimws(lines)
+      lines <- lines[nzchar(lines) & !startsWith(lines, "#")]
+      if (length(lines)) {
+        cand <- path.expand(lines[1])
+        if (dir.exists(cand)) return(normalizePath(cand, winslash = "/", mustWork = FALSE))
+      }
+    }
+  }
+
+  # On macOS, fall back to Foundation NSURL alias resolution (handles legacy aliases or moved targets)
+  if (identical(Sys.info()[["sysname"]], "Darwin") && nzchar(Sys.which("osascript"))) {
+    jxa <- paste(
+      'ObjC.import("Foundation");',
+      'function run(argv) {',
+      '  var u = $.NSURL.fileURLWithPath(argv[0]);',
+      '  var r = $.NSURL.URLByResolvingAliasFileAtURLOptionsError(u, 0, $());',
+      '  return r && !r.isNil() ? ObjC.unwrap(r.path) : "";',
+      '}'
+    )
+    res <- tryCatch(
+      suppressWarnings(system2("osascript",
+                               c("-l", "JavaScript", "-e", shQuote(jxa), shQuote(normalizePath(p, mustWork = FALSE))),
+                               stdout = TRUE, stderr = FALSE)),
+      error = function(e) character()
+    )
+    res <- trimws(paste(res, collapse = "\n"))
+    if (nzchar(res) && dir.exists(res)) return(normalizePath(res, winslash = "/", mustWork = FALSE))
+  }
+  if (!is.null(bm)) return(bm)
+  NULL
+}
+
+#' Project root folder (for finding songs/ and the dlc alias).
+#' @noRd
+library_project_root <- function() {
+  getOption("rockshiny.root", ".")
+}
+
+#' Default project songs folder.
+#' @noRd
+library_default_dir <- function() {
+  d <- file.path(library_project_root(), "songs")
+  if (dir.exists(d)) normalizePath(d, winslash = "/", mustWork = FALSE) else "songs"
+}
+
+#' Path of the root `dlc` alias (macOS alias, symlink, folder, or path file), or NULL.
+#' @noRd
+library_dlc_alias <- function() {
+  opt <- getOption("rockshiny.dlc_alias")
+  if (!is.null(opt)) {
+    return(if (length(opt) == 1L && nzchar(opt) && (file.exists(opt) || dir.exists(opt))) opt else NULL)
+  }
+  cands <- unique(c(file.path(library_project_root(), "dlc"), "dlc"))
+  for (p in cands) {
+    if (file.exists(p) || dir.exists(p)) return(p)
+  }
+  NULL
+}
+
+#' Resolved target folder of the root `dlc` alias, or NULL when no `dlc` alias exists.
+#' Override with `options(rockshiny.dlc_dir = ...)` or `options(rockshiny.dlc_alias = ...)`.
+#' @export
+library_dlc_dir <- function() {
+  opt <- getOption("rockshiny.dlc_dir")
+  if (!is.null(opt)) {
+    if (!length(opt) || !nzchar(trimws(opt))) return(NULL)
+    return(resolve_path_alias(opt) %||% path.expand(trimws(opt)))
+  }
+  a <- library_dlc_alias()
+  if (is.null(a)) return(NULL)
+  resolve_path_alias(a)
+}
+
+#' Are two folder paths the same directory?
+#' @noRd
+library_same_dir <- function(a, b) {
+  if (!length(a) || !length(b) || is.na(a) || is.na(b) || !nzchar(a) || !nzchar(b)) return(FALSE)
+  identical(
+    sub("/+$", "", normalizePath(a, winslash = "/", mustWork = FALSE)),
+    sub("/+$", "", normalizePath(b, winslash = "/", mustWork = FALSE))
+  )
+}
+
 # ---- settings -----------------------------------------------------------------------------
 
 library_config_file <- function() {
@@ -66,10 +238,14 @@ library_config <- function() {
 }
 
 #' Remember the library folder (for this R session and the next ones).
-#' @param dir the folder.
+#' @param dir the folder (or a symlink / macOS alias pointing to one).
 #' @param recursive include subfolders.
 #' @export
 library_set_dir <- function(dir, recursive = FALSE) {
+  if (!dir.exists(dir)) {
+    resolved <- resolve_path_alias(dir)
+    if (!is.null(resolved)) dir <- resolved
+  }
   if (!dir.exists(dir)) stop(dir, ": no such folder", call. = FALSE)
   dir <- normalizePath(dir)
   options(rockshiny.library_dir = dir, rockshiny.library_recursive = isTRUE(recursive))
@@ -87,7 +263,12 @@ library_set_dir <- function(dir, recursive = FALSE) {
 #' Song files in a folder (full, normalised paths; sorted).
 #' @noRd
 library_files <- function(dir, recursive = FALSE) {
-  if (!length(dir) || !dir.exists(dir)) return(character())
+  if (!length(dir)) return(character())
+  if (!dir.exists(dir) && file.exists(dir)) {
+    resolved <- resolve_path_alias(dir)
+    if (!is.null(resolved)) dir <- resolved
+  }
+  if (!dir.exists(dir)) return(character())
   f <- list.files(dir, pattern = LIBRARY_PATTERN, ignore.case = TRUE, recursive = recursive)
   f <- f[!grepl("(^|/)[.]", f)]                                   # hidden files / folders (._x.psarc from macOS zips)
   if (!length(f)) return(character())
@@ -299,6 +480,10 @@ library_note_key <- function(path, key) {
 library_open <- function(dir = library_dir(), recursive = library_recursive(), budget = NULL,
                          threshold = getOption("rockshiny.library_lazy_threshold", 50)) {
   t0 <- proc.time()[[3]]
+  if (length(dir) == 1L && !dir.exists(dir) && file.exists(dir)) {
+    resolved <- resolve_path_alias(dir)
+    if (!is.null(resolved)) dir <- resolved
+  }
   files <- library_files(dir, recursive)
   info <- file.info(files)
   size <- as.numeric(info$size)
